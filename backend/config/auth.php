@@ -37,18 +37,30 @@ return [
 
     'guards' => [
         'admin' => [
-            'driver' => 'session',
+            'driver' => 'sanctum',
             'provider' => 'admins',
         ],
 
         'advisor' => [
-            'driver' => 'session',
+            'driver' => 'sanctum',
             'provider' => 'advisors',
         ],
 
         'student' => [
-            'driver' => 'session',
+            'driver' => 'sanctum',
             'provider' => 'students',
+        ],
+        'api-student' => [
+            'driver' => 'sanctum',
+            'provider' => 'students',
+        ],
+        'api-admin' => [
+            'driver' => 'sanctum',
+            'provider' => 'admins',
+        ],
+        'api-supervisor' => [
+            'driver' => 'sanctum',
+            'provider' => 'supervisors',
         ],
     ],
 
@@ -72,17 +84,17 @@ return [
     'providers' => [
         'admins' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', App\Models\User::class),
+            'model' => env('AUTH_MODEL', App\Models\Admin::class),
         ],
 
         'advisors' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', App\Models\User::class),
+            'model' => env('AUTH_MODEL', App\Models\Advisor::class),
         ],
 
         'student' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', App\Models\User::class),
+            'model' => env('AUTH_MODEL', App\Models\Student::class),
         ],
     ],
 
