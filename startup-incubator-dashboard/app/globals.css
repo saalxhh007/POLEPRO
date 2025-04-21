@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 122 39% 49%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 340 82% 52%;
+    --secondary-foreground: 210 40% 98%;
+
+    --accent: 45 100% 51%;
+    --accent-foreground: 0 0% 13%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 122 39% 49%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 340 82% 52%;
+    --secondary-foreground: 210 40% 98%;
+
+    --accent: 45 100% 51%;
+    --accent-foreground: 0 0% 13%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom styles for the incubator platform */
+.gradient-bg {
+  background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+}
+
+.accent-gradient {
+  background: linear-gradient(135deg, #e91e63 0%, #c2185b 100%);
+}
+
+.brain-gradient {
+  background: linear-gradient(135deg, #ffc107 0%, #ff9800 50%, #4caf50 100%);
+}
+
+.card-hover {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(76, 175, 80, 0.1);
+}
+
+.btn-primary {
+  @apply bg-primary text-white hover:bg-primary-600 transition-colors;
+}
+
+.btn-secondary {
+  @apply bg-secondary text-white hover:bg-secondary-600 transition-colors;
+}
+
+.btn-accent {
+  @apply bg-accent text-accent-foreground hover:bg-accent-600 transition-colors;
+}
+
+.nav-item {
+  @apply flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-primary-100 hover:text-primary-500;
+}
+
+.nav-item-active {
+  @apply bg-primary-50 text-primary-500 font-medium;
+}
+
+/* Animation pour les éléments au défilement */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.animate-on-scroll.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
