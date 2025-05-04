@@ -3,12 +3,20 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Startup\StartupController;
 
-// API Routes for managing the startup database
-Route::prefix('')->group(function () {
-    Route::get('/', [StartupController::class, 'index']); // Get all startups
-    Route::get('/recent', [StartupController::class, 'recent']); // get all recent startups
+
+// API Routes for managing the startup database (everyone has access)
+Route::get('/', [StartupController::class, 'index']); // Get all startups
+Route::get('/{id}', [StartupController::class, 'show']); // Get a specific startup
+Route::get('all/recent', [StartupController::class, 'recent']); // get all recent startups
+
+// only admin
+Route::middleware('role:admin')->group(function () {
     Route::post('/', [StartupController::class, 'store']); // Create a new startup
-    Route::get('/{id}', [StartupController::class, 'show']); // Get a specific startup
     Route::put('/{id}', [StartupController::class, 'update']); // Update a specific startup
     Route::delete('/{id}', [StartupController::class, 'destroy']); // Delete a specific startup
+    Route::post('/meeting/schedule', [StartupController::class, 'meetingSchedule']); // Schedule a new meeting
+    Route::put('/meeting/complete/{id}', [StartupController::class, 'completed']); // Mark meeting as completed
+    Route::delete('/meeting/delete/{id}', [StartupController::class, 'destroyMeet']);
+    Route::get('/mentor_startup/{startupId}', [StartupController::class, 'MentorFromStartup']);
+    Route::get('/startup_mentor/{mentorId}', [StartupController::class, 'StartupsFromMentor']);
 });

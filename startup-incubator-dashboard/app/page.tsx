@@ -5,7 +5,6 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import {
   ChevronRight,
@@ -25,26 +24,176 @@ import {
 } from "lucide-react"
 import { UserPlus, Share2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import axios from "axios"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { User, Settings, LogOut } from "lucide-react"
+import { useDispatch, useSelector } from "react-redux"
+import api from "@/lib/axios"
+import { logout, setAuth } from "@/store/slices/authSlice"
+import { jwtDecode } from "jwt-decode";
+import { RootState } from "@/store"
+import toast from "react-hot-toast"
+
+interface Participant {
+  event_id: number
+  status: string
+  name: string
+  email: string
+  phone: string
+  organization: string
+  role: string
+  expectations: string
+}
+
+type ParticipantCounts = {
+  [eventId: number]: number
+}
 
 export default function Home() {
-
   const [projects, setProjects] = useState<any[]>([])
+  const [events, setEvents] = useState<any[]>([])
+  const [participants, setParticipants] = useState<any[]>([])
+  const [participantCounts, setParticipantCounts] = useState<ParticipantCounts>({})
+  const state = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch();
+  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
+  const role = useSelector((state: RootState) => state.auth.role);
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
-  const fetchProjects = async () => {
-    const res = await fetch(`${apiUrl}/api/startup/recent`)
-    const data = await res.json()
+  function formatDate(isoDate: any) {
+    const date = new Date(isoDate)
+    const day = date.getUTCDate()
+    const monthIndex = date.getUTCMonth()
+    const monthNames = [
+      "Janvier",
+      "Février",
+      "Mars",
+      "Avril",
+      "Mai",
+      "Juin",
+      "Juillet",
+      "Août",
+      "Septembre",
+      "Octobre",
+      "Novembre",
+      "Décembre",
+    ]
 
-    setProjects(data.slice(0, 3)); 
-    
+    const monthName = monthNames[monthIndex]
+
+    return {
+      day: day.toString().padStart(2, "0"),
+      month: monthName,
+    }
   }
+
+  const fetchProjects = () => {
+    api
+      .get(`${apiUrl}/api/startup/all/recent`, {
+        withCredentials: false,
+      })
+      .then((response) => {
+        setProjects(response.data.slice(0, 3))
+      })
+      .catch((err) => {
+        console.log(err)
+      })
+  }
+  const fetchEvents = () => {
+    api
+      .get(`${apiUrl}/api/event/upcoming`, {
+        withCredentials: false,
+      })
+      .then((response) => {
+        setEvents(response.data.data.slice(0, 3))
+      })
+      .catch((err) => {
+        console.log(err)
+      })
+  }
+  const fetchParticipants = () => {
+    axios
+      .get<{ participants: Participant[] }>(`${apiUrl}/api/participent/all`, 
+        { headers: {
+          Authorization: `Bearer ${accessToken}`,
+        }},)
+      .then((response) => {
+        const confirmedParticipants = response.data.participants.filter(
+          (participant) => participant.status === "confirmed",
+        )
+        setParticipants(confirmedParticipants)
+
+        const counts: ParticipantCounts = {}
+        confirmedParticipants.forEach((participant) => {
+          const event_id = participant.event_id
+          counts[event_id] = (counts[event_id] || 0) + 1
+        })
+        setParticipantCounts(counts)
+      })
+      .catch((err) => {
+        console.error("Error fetching participants:", err)
+      })
+  }
+
+  const refreshAccessToken = async () => {
+    api.post(`${apiUrl}/api/user/refresh-token`, {}, {
+      withCredentials: true,
+    })
+    .then(response => {
+      if (response.data.access_token) {
+        dispatch(setAuth({ accessToken: response.data.access_token, role: response.data.role }));
+      } else {
+        console.log("Failed to refresh token");
+      }
+    })
+    .catch(err => {
+      console.error("Error refreshing token:", err)
+    })
+  };
+  const setupTokenRefresh = () => {
+    const tokenExpiryTime  = getTokenExpiryTime() || 0;
+    const refreshThreshold = 2 * 60 * 1000;
+
+    setTimeout(() => {
+      refreshAccessToken();
+    }, tokenExpiryTime - Date.now() - refreshThreshold);
+  };
+const getTokenExpiryTime = (): number | null => {
+  const token = getAccessToken();
+
+  if (!token) {
+    return null;
+  }
+
+  const decoded: { exp: number } = jwtDecode(token);
+  return decoded.exp * 1000;
+  };
+  const getAccessToken = () => {
+    return state.accessToken;
+  };
 
   useEffect(() => {
     fetchProjects()
+    fetchEvents()
+    fetchParticipants()
   }, [])
+  
   useEffect(() => {
-    console.log(projects);
-  }, [projects]);
+    if (isAuthenticated) {
+      setupTokenRefresh();
+    } else {
+      console.log("User is not authenticated");
+    }
+  }, [isAuthenticated]);
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header */}
@@ -90,13 +239,129 @@ export default function Home() {
             </nav>
           </div>
           <div className="flex items-center gap-2">
-            <Tabs defaultValue="fr" className="w-[180px]">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="fr">FR</TabsTrigger>
-                <TabsTrigger value="ar">عربي</TabsTrigger>
-                <TabsTrigger value="en">EN</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="flex items-center gap-2">
+              { isAuthenticated && role === "student" ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="rounded-full">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-6 w-6"
+                      >
+                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                      <span className="sr-only">User menu</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>
+                      <Link href="my-account/my-startup" passHref>
+                        <div className="flex items-center">
+                          <Briefcase className="mr-2 h-4 w-4" />
+                          <span>Ma startup</span>
+                        </div>
+                      </Link>
+                    </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Link href="my-account/my-events" passHref>
+                          <div className="flex items-center">
+                            <Calendar className="mr-2 h-4 w-4" />
+                            <span>Mes événements</span>
+                          </div>
+                        </Link>
+                      </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Link href="my-account/my-profile" passHref>
+                        <div className="flex items-center">
+                          <User className="mr-2 h-4 w-4" />
+                          <span>Profil</span>
+                        </div>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Link href="my-account/settings" passHref>
+                        <div className="flex items-center">
+                          <Settings className="mr-2 h-4 w-4" />
+                          <span>Paramètres</span>
+                        </div>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        dispatch(logout())
+                        toast.success("Logout Succeffuly")
+                      }}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Se déconnecter</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : isAuthenticated && role === "admin" ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="rounded-full">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-6 w-6"
+                        >
+                          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                        <span className="sr-only">Admin menu</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel>Admin Menu</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem>
+                          <Link href="/dashboard" passHref>
+                            <div className="flex items-center">
+                              <span>Dashboard</span>
+                            </div>
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => {
+                            dispatch(logout());
+                            toast.success("Logout Successfully");
+                          }}
+                        >
+                          <LogOut className="mr-2 h-4 w-4" />
+                          <span>Se déconnecter</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                  </DropdownMenu>
+                
+              ): (
+                <Link href="/login">
+                  <Button variant="outline" size="sm">
+                    Se connecter
+                  </Button>
+                </Link>
+              )}
+            </div>
             <Button variant="outline" size="icon" className="md:hidden">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -574,9 +839,7 @@ export default function Home() {
                   </div>
                   <CardContent className="p-4">
                     <h4 className="text-lg font-bold mb-2">{project.name}</h4>
-                    <p className="text-sm text-gray-500 mb-2">
-                      {project.description}
-                    </p>
+                    <p className="text-sm text-gray-500 mb-2">{project.description}</p>
                     <Badge className="bg-primary/10 text-primary hover:bg-primary/20">{project.industry}</Badge>
                   </CardContent>
                 </Card>
@@ -684,103 +947,29 @@ export default function Home() {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
-            {[1, 2, 3].map((i) => (
-              <Card key={i} className="overflow-hidden transition-all hover:shadow-lg">
-                <div className="aspect-video relative">
-                  <Image
-                    src="/placeholder.svg?height=200&width=400"
-                    alt={`Événement ${i}`}
-                    width={400}
-                    height={200}
-                    className="object-cover w-full h-full"
-                  />
-                  <div className="absolute top-4 left-4">
-                    <div className="bg-white rounded-lg p-2 text-center shadow-md">
-                      <div className="text-xl font-bold text-primary">15</div>
-                      <div className="text-xs">Juin</div>
+            {events.map((event, i) => {
+              const { day, month } = formatDate(event.date)
+              return (
+                <Card key={event.id} className="overflow-hidden transition-all hover:shadow-lg">
+                  <div className="aspect-video relative">
+                    <Image
+                      src="/placeholder.svg?height=200&width=400"
+                      alt={`Événement ${i}`}
+                      width={400}
+                      height={200}
+                      className="object-cover w-full h-full"
+                    />
+                    <div className="absolute top-4 left-4">
+                      <div className="bg-white rounded-lg p-2 text-center shadow-md">
+                        <div className="text-xl font-bold text-primary">{day}</div>
+                        <div className="text-xs">{month}</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="absolute top-4 right-4 flex gap-2">
-                    <Button
-                      size="icon"
-                      variant="secondary"
-                      className="rounded-full h-8 w-8 bg-white/80 hover:bg-white text-primary"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        alert(`Événement ${i} ajouté aux favoris`)
-                      }}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-4 w-4"
-                      >
-                        <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-                      </svg>
-                      <span className="sr-only">Favoriser</span>
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="secondary"
-                      className="rounded-full h-8 w-8 bg-white/80 hover:bg-white text-primary"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        alert(`Partager l'événement ${i}`)
-                      }}
-                    >
-                      <Share2 className="h-4 w-4" />
-                      <span className="sr-only">Partager</span>
-                    </Button>
-                  </div>
-                </div>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xl font-bold">Atelier d'Innovation {i}</h3>
-                    <Badge
-                      className={
-                        i === 1
-                          ? "bg-green-100 text-green-800"
-                          : i === 2
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-amber-100 text-amber-800"
-                      }
-                    >
-                      {i === 1 ? "Places disponibles" : i === 2 ? "Bientôt complet" : "Dernières places"}
-                    </Badge>
-                  </div>
-                  <p className="text-gray-500 mb-4">
-                    Description de l'événement et des thèmes qui seront abordés lors de cette session.
-                  </p>
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-                    <Calendar className="h-4 w-4" />
-                    <span>15 Juin 2025, 14:00 - 17:00</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-                    <MapPin className="h-4 w-4" />
-                    <span>Université de Guelma, Salle de Conférence</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-                    <Users className="h-4 w-4" />
-                    <span>
-                      {30 + i * 10} participants / {50 + i * 10} places
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Link href={`/events/${i}`}>
-                      <Button className="w-full">Voir plus de détails</Button>
-                    </Link>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="absolute top-4 right-4 flex gap-2">
                       <Button
-                        variant="outline"
-                        className="flex items-center justify-center gap-1"
+                        size="icon"
+                        variant="secondary"
+                        className="rounded-full h-8 w-8 bg-white/80 hover:bg-white text-primary"
                         onClick={(e) => {
                           e.preventDefault()
                           alert(`Événement ${i} ajouté aux favoris`)
@@ -800,40 +989,120 @@ export default function Home() {
                         >
                           <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
                         </svg>
-                        <span className="sr-only md:not-sr-only md:text-xs lg:text-sm">Favoriser</span>
+                        <span className="sr-only">Favoriser</span>
                       </Button>
                       <Button
-                        variant="outline"
-                        className="flex items-center justify-center gap-1"
+                        size="icon"
+                        variant="secondary"
+                        className="rounded-full h-8 w-8 bg-white/80 hover:bg-white text-primary"
                         onClick={(e) => {
                           e.preventDefault()
                           alert(`Partager l'événement ${i}`)
                         }}
                       >
                         <Share2 className="h-4 w-4" />
-                        <span className="sr-only md:not-sr-only md:text-xs lg:text-sm">Partager</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="flex items-center justify-center gap-1"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          alert(`S'inscrire à l'événement ${i}`)
-                        }}
-                      >
-                        <UserPlus className="h-4 w-4" />
-                        <span className="sr-only md:not-sr-only md:text-xs lg:text-sm">S'inscrire</span>
+                        <span className="sr-only">Partager</span>
                       </Button>
                     </div>
-                    <Link href={`/events/${i}`}>
-                      <Button variant="ghost" className="w-full text-primary">
-                        Voir plus de détails
-                      </Button>
-                    </Link>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xl font-bold">{event.title}</h3>
+                      <Badge
+                        className={
+                          event.capacity === participantCounts[event.id]
+                            ? "bg-green-100 text-green-800"
+                            : event.capacity - (participantCounts[event.id] || 0) <= 3
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-amber-100 text-amber-800"
+                        }
+                      >
+                        {event.capacity === participantCounts[event.id]
+                          ? "Places Completed"
+                          : event.capacity - (participantCounts[event.id] || 0) <= 3
+                            ? "Bientôt complet"
+                            : "Still Places"}
+                      </Badge>
+                    </div>
+                    <p className="text-gray-500 mb-4">
+                      Description de l'événement et des thèmes qui seront abordés lors de cette session.
+                    </p>
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                      <Calendar className="h-4 w-4" />
+                      <span>{`${event.date}`}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                      <MapPin className="h-4 w-4" />
+                      <span>{event.location}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
+                      <Users className="h-4 w-4" />
+                      <span>
+                        {participantCounts[event.id] || 0} Taken / {event.capacity} places
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <Link href={`/events/${i}`}>
+                        <Button className="w-full">Voir plus de détails</Button>
+                      </Link>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          variant="outline"
+                          className="flex items-center justify-center gap-1"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            alert(`Événement ${i} ajouté aux favoris`)
+                          }}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-4 w-4"
+                          >
+                            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                          </svg>
+                          <span className="sr-only md:not-sr-only md:text-xs lg:text-sm">Favoriser</span>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="flex items-center justify-center gap-1"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            alert(`Partager l'événement ${i}`)
+                          }}
+                        >
+                          <Share2 className="h-4 w-4" />
+                          <span className="sr-only md:not-sr-only md:text-xs lg:text-sm">Partager</span>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="flex items-center justify-center gap-1"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            alert(`S'inscrire à l'événement ${i}`)
+                          }}
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          <span className="sr-only md:not-sr-only md:text-xs lg:text-sm">S'inscrire</span>
+                        </Button>
+                      </div>
+                      <Link href={`/events/${i}`}>
+                        <Button variant="ghost" className="w-full text-primary">
+                          Voir plus de détails
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
           <div className="flex justify-center mt-8">
             <Link href="/events">
@@ -997,4 +1266,3 @@ export default function Home() {
     </div>
   )
 }
-

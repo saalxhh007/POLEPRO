@@ -3,13 +3,16 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Event\EventController;
 
-// API Routes for managing the event database
-Route::prefix('')->group(function () {
-    Route::get('/', [EventController::class, 'index']); // Get all events
-    Route::get('/upcoming', [EventController::class, 'upcoming']); // Get all upcoming events
-    Route::post('/', [EventController::class, 'store']); // Create a new event
-    Route::get('/{id}', [EventController::class, 'show']); // Get a specific event
-    Route::put('/{id}', [EventController::class, 'update']); // Update a specific event
-    Route::delete('/{id}', [EventController::class, 'destroy']); // Delete a specific event
-    Route::post("/share", [EventController::class, "shareEvent"]); // Share an event
+
+// API Routes for managing the event database (everyone has access)
+Route::get('/', [EventController::class, 'index']); // Get all events
+Route::get('/upcoming', [EventController::class, 'upcoming']); // Get all upcoming events
+Route::get('/{id}', [EventController::class, 'show']); // Get a specific event
+
+// only admin
+Route::middleware('role:admin')->group(function () {
+    Route::post('/events', [EventController::class, 'store']); // Create event
+    Route::put('/events/{id}', [EventController::class, 'update']); // Update event
+    Route::delete('/events/{id}', [EventController::class, 'destroy']); // Delete event
+    Route::post("/share/facebook", [EventController::class, "shareToFacebook"]); // Share an event
 });

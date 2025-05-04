@@ -27,24 +27,38 @@ class EventController extends Controller
         ], Response::HTTP_OK);
     }
     // Create A Event
-    function store()
+    function store(Request $request)
     {
-        $data = request()->validate([
-            'title' => 'required',
-            "type" => "required",
-            'description' => 'required',
-            'date' => 'required',
-            'time' => 'required',
-            'location' => 'required',
-            "capacity" => "required",
-            "intervenants" => "required",
-            "prerequis" => "required",
-            "tags" => "required",
-            "image" => "required",
-            "titre_fiche" => "required",
-            "titre_fiche" => "required",
-        ]);
         try {
+            $data = $request->validate([
+                "title" => "required|string",
+                "type" => "required|string",
+                "description" => "nullable|string",
+                "date" => "required|date",
+                "time" => "required|string",
+                "location" => "required|string",
+                "capacity" => "nullable|integer",
+                "tags" => "nullable|string",
+                "fiche" => "nullable|file|mimes:jpg,jpeg,png,pdf|max:5120",
+                "fiche_title" => "nullable|string",
+                "fiche_alternatif" => "nullable|string",
+                "supp.*" => "nullable|file|mimes:pdf,doc,docx,ppt,pptx|max:10240",
+            ]);
+
+            if ($request->hasFile('fiche')) {
+                $data['fiche'] = $request->file('fiche')->store('fiches');
+            }
+
+            if ($request->hasFile('supp')) {
+                $supp = [];
+                foreach ($request->file('supp') as $document) {
+                    $supp[] = $document->store('supp');
+                }
+                $data['supp'] = json_encode($supp);
+            }
+
+            $data['date'] = Carbon::parse($data['date'])->toDateString();
+
             $event = Event::create($data);
             return response()->json([
                 'status' => true,
@@ -64,65 +78,81 @@ class EventController extends Controller
 
     function show($id)
     {
-        $event = Event::find($id);
+        try {
 
-        if (!$event) {
-            return response()->json(['message' => 'Event not found'], Response::HTTP_NOT_FOUND);
+            $event = Event::find($id);
+
+            if (!$event) {
+                return response()->json([
+                    "success" => false,
+                    'message' => 'Event not found'
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            return response()->json([
+                "success" => true,
+                "data" => $event
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                "success" => false,
+                "data" => $th->getMessage()
+            ], Response::HTTP_OK);
         }
-
-        return response()->json($event, Response::HTTP_OK);
     }
 
-    function update($id)
+    function update(Request $req, $id)
     {
-
         try {
             $event = Event::find($id);
 
             if (!$event) {
-                return response()->json(['message' => 'Event not found'], Response::HTTP_NOT_FOUND);
+                return response()->json([
+                    "success" => false,
+                    'message' => 'Event not found'
+                ], Response::HTTP_NOT_FOUND);
             }
 
-            // $data = request()->validate([
-            //     'idea_stage' => 'sometimes|required',
-            //     'idea' => 'sometimes|required',
-            //     'description' => 'sometimes|required',
-            //     'innovation' => 'sometimes|required',
-            //     'target_customers' => 'sometimes|required',
-            //     'originality' => 'sometimes|required',
-            //     'sector' => 'sometimes|required',
-            //     'other_details' => 'sometimes|required',
-            //     'business_model' => 'sometimes|required',
-            //     'supervisor_name' => 'sometimes|required',
-            //     'submission_date' => 'sometimes|required',
-            //     'modified_date' => 'sometimes|required',
-            //     'is_final' => 'sometimes|required',
-            //     'in_pole' => 'sometimes|required',
-            //     'approved_by_dean' => 'sometimes|required',
-            //     'faculty_code' => 'sometimes|required',
-            //     'advisor_id' => 'sometimes|required',
-            //     'advisor_grade' => 'sometimes|required',
-            //     'advisor_specialization' => 'sometimes|required',
-            //     'advisor_faculty' => 'sometimes|required',
-            //     'advisor_department' => 'sometimes|required',
-            //     'idea_origin' => 'sometimes|required',
-            // ]);
+            $data = $$req->validate([
+                'title' => 'sometimes|required|string',
+                'type' => 'sometimes|required|string',
+                'description' => 'sometimes|nullable|string',
+                'date' => 'sometimes|required|date',
+                'time' => 'sometimes|required|string',
+                'location' => 'sometimes|required|string',
+                'capacity' => 'sometimes|nullable|integer',
+                'tags' => 'sometimes|nullable|string',
+                'fiche' => 'sometimes|nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+                'fiche_title' => 'sometimes|nullable|string',
+                'fiche_alternatif' => 'sometimes|nullable|string',
+                'supp.*' => 'sometimes|nullable|file|mimes:pdf,doc,docx,ppt,pptx|max:10240',
+            ]);
 
-            // $event->update($data);
+            if ($req->hasFile('fiche')) {
+                $data['fiche'] = $req->file('fiche')->store('fiches');
+            }
 
-            // return response()->json([
-            //     'status' => true,
-            //     'message' => 'Event Updated Successfully',
-            //     'data' => $event
-            // ], Response::HTTP_OK);
+            if ($req->hasFile('supp')) {
+                $supp = [];
+                foreach ($req->file('supp') as $document) {
+                    $supp[] = $document->store('supp');
+                }
+                $data['supp'] = json_encode($supp);
+            }
+
+            $event->update($data);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Event Updated Successfully',
+                'data' => $event
+            ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return response()->json([
                 'status' => false,
                 'message' => 'Error Updating Event',
                 'error' => $th->getMessage()
             ]);
-        } catch (\Throwable $th) {
-            throw $th;
         }
     }
     function destroy($id)
@@ -158,46 +188,55 @@ class EventController extends Controller
         ]);
     }
     // Share Event
-    function shareEvent(Request $req)
-    {
-        $validated = $req->validate([
-            'article.title' => 'required|string|max:255',
-            'article.link' => 'required|url',
-            'platforms' => 'required|array|min:1',
-            'platforms.*' => 'string|in:facebook,instagram,linkedin,twitter',
-        ]);
+    // function shareEvent(Request $req)
+    // {
+    //     $validated = $req->validate([
+    //         'article.title' => 'required|string|max:255',
+    //         'article.link' => 'required|url',
+    //         'platforms' => 'required|array|min:1',
+    //         'platforms.*' => 'string|in:facebook,instagram,linkedin,twitter',
+    //     ]);
 
-        $article = $validated['article'];
-        $platforms = $validated['platforms'];
+    //     $article = $validated['article'];
+    //     $platforms = $validated['platforms'];
 
-        $responses = [];
+    //     $responses = [];
 
-        foreach ($platforms as $platform) {
-            switch ($platform) {
-                case 'facebook':
-                    $responses['facebook'] = $this->shareToFacebook($article);
-                    break;
-                case 'instagram':
-                    $responses['instagram'] = $this->shareToInstagram($article);
-                    break;
-                case 'linkedin':
-                    $responses['linkedin'] = $this->shareToLinkedIn($article);
-                    break;
-                default:
-                    $responses[$platform] = 'Unsupported Platform';
-            }
-        }
+    //     foreach ($platforms as $platform) {
+    //         switch ($platform) {
+    //             case 'facebook':
+    //                 $responses['facebook'] = $this->shareToFacebook($article);
+    //                 break;
+    //             case 'instagram':
+    //                 $responses['instagram'] = $this->shareToInstagram($article);
+    //                 break;
+    //             case 'linkedin':
+    //                 $responses['linkedin'] = $this->shareToLinkedIn($article);
+    //                 break;
+    //             default:
+    //                 $responses[$platform] = 'Unsupported Platform';
+    //         }
+    //     }
 
-        return response()->json([
-            'status' => true,
-            $responses,
-        ], Response::HTTP_OK);
-    }
+    //     return response()->json([
+    //         'status' => true,
+    //         $responses,
+    //     ], Response::HTTP_OK);
+    // }
 
-    private function shareToFacebook($article)
+    // Share Event To Facebook
+    function shareToFacebook(Request $req)
     {
         try {
-
+            $validated = $req->validate([
+                'article.title' => 'required|string|max:255',
+                'article.link' => 'required|url',
+                'platforms' => 'required|array|min:1',
+                'platforms.*' => 'string|in:facebook,instagram,linkedin,twitter',
+            ]);
+    
+            $article = $validated['article'];
+    
             $pageAccessToken = env('FACEBOOK_PAGE_ACCESS_TOKEN');
             $pageId = env('FACEBOOK_PAGE_ID');
 

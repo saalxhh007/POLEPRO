@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Mentor;
 
 use App\Http\Controllers\Controller;
+use App\Models\Meeting;
 use Illuminate\Http\Request;
 use App\Models\Mentor;
+use App\Models\Startup;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 class MentorController extends Controller
 {
@@ -34,6 +37,7 @@ class MentorController extends Controller
                 'expertise' => 'required',
                 'company' => 'required',
                 'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                "bio" => "nullable|string"
             ]);
             if ($req->hasFile('image')) {
                 $imagePath = $req->file('image')->store('mentors', 'public');
@@ -63,7 +67,10 @@ class MentorController extends Controller
         $mentor = Mentor::find($id);
 
         if (!$mentor) {
-            return response()->json(['message' => 'Mentor not found'], Response::HTTP_NOT_FOUND);
+            return response()->json([
+                "success" => true,
+                'message' => 'Mentor not found'
+            ], Response::HTTP_NOT_FOUND);
         }
 
         return response()->json($mentor, Response::HTTP_OK);
@@ -121,6 +128,7 @@ class MentorController extends Controller
             throw $th;
         }
     }
+    
     function destroy($id)
     {
         $mantor = Mentor::find($id);
@@ -140,20 +148,45 @@ class MentorController extends Controller
         ], Response::HTTP_OK);
     }
 
-    function assignMentor($id)
+    function assignMentor(Request $req)
     {
-        $mentor = Mentor::find($id);
+        $req->validate([
+            'mentor_id' => 'required|integer|exists:mentors,id',
+            'startup_id' => 'required|integer|exists:startup,id',
+        ]);
 
-        if (!$mentor) {
-            return response()->json(['message' => 'Mentor not found'], Response::HTTP_NOT_FOUND);
+        $mentor = Mentor::find($req["mentor_id"]);
+        $startup = Startup::find($req["startup_id"]);
+
+        if (!$mentor || ! $startup) {
+            return response()->json([
+                "success" => false,
+                'message' => 'Error'
+            ], Response::HTTP_NOT_FOUND);
+        }
+        if ($mentor->availability === 'busy') {
+            return response()->json([
+                "success" => false,
+                'message' => 'Mentor is already busy'
+            ], Response::HTTP_BAD_REQUEST);
         }
 
-        // $mentor->update([
-        //     'assigned' => true,
-        // ]);
+        DB::table('mentor_startup')->insert([
+            'mentor_id' => $req["mentor_id"],
+            'startup_id' => $req["startup_id"],
+        ]);
 
-        return response()->json(['message' => 'Mentor assigned successfully'], Response::HTTP_OK);
+        $mentor->startups += 1;
+        $mentor->availability = 'busy';
+
+        $mentor->save();
+
+        return response()->json([
+            "success" => true,
+            'message' => 'Mentor assigned successfully'
+        ], Response::HTTP_OK);
     }
+
     function available()
     {
         $mentors = Mentor::where("availability", "available")->get();
@@ -169,5 +202,57 @@ class MentorController extends Controller
             'message' => 'Available Mentors Retrieved Successfully',
             'data' => $mentors,
         ]);
+    }
+
+    public function startupFromMentor($mentorId)
+    {
+        try {
+            $startups = DB::table('mentor_startup')
+                ->where('mentor_id', $mentorId)
+                ->join('startup', 'mentor_startup.startup_id', '=', 'startup.id')
+                ->select('startup.id', 'startup.name', 'startup.industry', 'startup.sector', 'startup.team_id')
+                ->get();
+
+            if ($startups->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No startups found for this mentor',
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $startups,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error' => $th->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function sessionsFromMentor($mentorId)
+    {
+        try {
+            $meetings = Meeting::where('mentor_id', $mentorId)->get();
+
+            if ($meetings->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No sessions found for this mentor',
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $meetings,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'error' => $th->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 }

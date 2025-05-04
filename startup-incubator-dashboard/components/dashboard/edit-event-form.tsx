@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,55 +12,67 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Calendar, Clock, MapPin, Users, Info, ImageIcon, Upload } from "lucide-react"
 import { useRouter } from "next/navigation"
+import axios from "axios"
+import { error } from "console"
+import toast from "react-hot-toast"
 
 interface EditEventFormProps {
-  eventId: string
+  eventId: number
 }
 
 export function EditEventForm({ eventId }: EditEventFormProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("basic")
   const [posterPreview, setPosterPreview] = useState<string | null>("/placeholder.svg?height=300&width=200")
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
-  // Dans une application réelle, vous récupéreriez les données de l'événement depuis une API
-  const [eventData, setEventData] = useState({
-    title: "Demo Day",
-    type: "showcase",
-    description: "Une journée pour présenter les projets des startups incubées.",
-    longDescription:
-      "Rejoignez-nous pour une journée complète de démonstrations où les startups incubées présenteront leurs projets innovants. Vous aurez l'occasion de rencontrer les fondateurs, d'échanger avec eux et de découvrir les dernières innovations dans différents domaines.",
-    date: "2025-06-15",
-    timeStart: "13:00",
-    timeEnd: "17:00",
-    location: "Main Auditorium",
-    capacity: "120",
-    speakers: "Ahmed Benali - CEO de TechInnovate\nSamira Hadj - Investisseuse\nKarim Meziane - Mentor",
-    requirements: "Aucun prérequis particulier",
-    tags: "innovation, entrepreneuriat, demo, pitch",
-    displayOnHomepage: true,
-  })
+  const [eventData, setEventData] = useState<any>({})
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target
-    setEventData((prev) => ({ ...prev, [id]: value }))
+    setEventData((prev: any) => ({ ...prev, [id]: value }))
   }
 
   const handleSelectChange = (id: string, value: string) => {
-    setEventData((prev) => ({ ...prev, [id]: value }))
+    setEventData((prev: any) => ({ ...prev, [id]: value }))
   }
 
   const handleCheckboxChange = (id: string, checked: boolean) => {
-    setEventData((prev) => ({ ...prev, [id]: checked }))
+    setEventData((prev: any) => ({ ...prev, [id]: checked }))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
+
+    const toastId = toast.loading("Deleting Event ...")
+    try {
+      axios
+        .post(`${apiUrl}api/event/${eventId}`, { eventData })
+        .then(response => {
+          console.log(response);
+          
+        })
+        .catch((error) => {
+          toast.error("Failed To Update The Event !")
+        })
+    } catch (error) {
+      
+    }
     e.preventDefault()
-    // Dans une application réelle, vous enverriez les données à une API
     console.log("Données de l'événement mises à jour:", eventData)
     alert("Événement mis à jour avec succès!")
     router.push("/dashboard/events")
   }
 
+  const fetchData = (eventId: number) => {
+    axios
+      .get(`${apiUrl}/api/event/${eventId}`)
+      .then((response) => {
+        setEventData(response.data.data)
+      })
+  }
+  useEffect(() => {
+    fetchData(eventId)
+  }, [])
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -100,17 +112,6 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Description courte</Label>
-            <Textarea
-              id="description"
-              value={eventData.description}
-              onChange={handleInputChange}
-              placeholder="Brève description de l'événement"
-              className="resize-none"
-            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -190,7 +191,7 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
             <Label htmlFor="longDescription">Description détaillée</Label>
             <Textarea
               id="longDescription"
-              value={eventData.longDescription}
+              value={eventData.description}
               onChange={handleInputChange}
               placeholder="Description complète de l'événement"
               className="min-h-[150px] resize-none"
@@ -204,17 +205,6 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
               value={eventData.speakers}
               onChange={handleInputChange}
               placeholder="Noms et rôles des intervenants (un par ligne)"
-              className="resize-none"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="requirements">Prérequis</Label>
-            <Textarea
-              id="requirements"
-              value={eventData.requirements}
-              onChange={handleInputChange}
-              placeholder="Prérequis pour participer à l'événement"
               className="resize-none"
             />
           </div>
@@ -271,15 +261,19 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="poster-title">Titre de l'affiche</Label>
-                  <Input id="poster-title" placeholder="Titre à afficher sur l'affiche" value="Demo Day 2025" />
+                  <Label htmlFor="fiche_title">Titre de l'affiche</Label>
+                  <Input
+                    id="fiche_title"
+                    value={eventData.fiche_title}
+                    onChange={handleInputChange}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="poster-alt">Texte alternatif</Label>
+                  <Label htmlFor="fiche_alternatif">Texte alternatif</Label>
                   <Input
-                    id="poster-alt"
-                    placeholder="Description pour l'accessibilité"
-                    value="Affiche du Demo Day 2025 présentant les startups incubées"
+                    id="fiche_alternatif"
+                    value={eventData.fiche_alternatif}
+                    onChange={handleInputChange}
                   />
                 </div>
                 <div className="flex items-start space-x-2">

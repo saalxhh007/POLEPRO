@@ -5,8 +5,8 @@ namespace App\Http\Controllers\auth;
 use App\Http\Controllers\Controller;
 use App\Mail\StudentApprovalMail;
 use App\Mail\StudentRejectionMail;
-use App\Models\Admin;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -61,37 +61,62 @@ class AdminController extends Controller
 
             foreach ($students as $index => $student) {
                 if ($student["id"] === $id) {
-                    $email = $student["email"];
+                    $studentData = [
+                        "id" => $student["id"],
+                        "matricule" => $student['matricule'],
+                        'email' => $student['email'],
+                        'first_name_ar' => $student['last_name_ar'],
+                        'last_name_ar' => $student['last_name_ar'],
+                        'idea' => $student['idea'],
+                        "name" => $student["name"],
+                        "number_of_members" => $student["number_of_members"]
+                    ];
 
-                    if (empty($email)) {
+                    if (empty($studentData["email"])) {
                         return response()->json([
                             'message' => 'Email address is required.',
-                            'success' => $req
+                            'success' => false
                         ], 400);
                     }
 
                     if ($req->decision === "approve") {
+                        $encryptedData = Crypt::encrypt($studentData);
+                        $encryptedData = urlencode($encryptedData);
+
                         $approvedStudents[] = $student;
                         Storage::put($this->approved_file, json_encode($approvedStudents, JSON_PRETTY_PRINT));
 
-                        $registrationLink = url("/student/register/{$id}");
-                        Mail::to($email)->send(new StudentApprovalMail($student['last_name_ar'], $registrationLink));
+                        $frontendUrl = config('app.frontend_url');
+                        $registrationLink = "{$frontendUrl}/signup?token={$encryptedData}";
+                        Mail::to($studentData["email"])->send(new StudentApprovalMail($studentData['last_name_ar'], $registrationLink));
 
                         unset($students[$index]);
                         Storage::put($this->pending_file, json_encode(array_values($students), JSON_PRETTY_PRINT));
-                        return response()->json(["message" => "Accepted ."]);
-                    }
 
-                    Mail::to($email)->send(new StudentRejectionMail($student['last_name_ar']));
-                    return response()->json(["message" => "Rejected ."]);
+                        return response()->json([
+                            "success" => true,
+                            "message" => "Accepted."
+                        ]);
+                    } elseif ($req->decision === "reject") {
+                        Mail::to($studentData["email"])->send(new StudentRejectionMail($student['last_name_ar']));
+
+                        unset($students[$index]);
+                        Storage::put($this->pending_file, json_encode(array_values($students), JSON_PRETTY_PRINT));
+
+                        return response()->json([
+                            "success" => true,
+                            "message" => "Rejected."
+                        ]);
+                    }
                 }
             }
-            return response()->json(['message' => 'Student not found'], 404);
+
+            return response()->json(['message' => 'Student not found.'], 404);
         } catch (\Throwable $e) {
             return response()->json([
                 'message' => 'An error occurred while processing your request.',
                 'error' => $e->getMessage(),
-                "success" => false
+                'success' => false
             ], 500);
         }
     }
@@ -111,35 +136,18 @@ class AdminController extends Controller
         return response()->json(['message' => 'Request not found'], 404);
     }
 
-    public function login(Request $req)
+    public function deleteAll()
     {
-        try {
+        $pendingstudents = $this->getAllPendingReq();
+        $approvedstudents = $this->getAllApprovedReq();
 
-            $req->validate([
-                "email" => "required|email",
-                "password" => "required|string|min:8|regex:/[A-Z]/|regex:/[0-9]/|regex:/[@$!%*?&]/",
-            ]);
+        $pendingstudents = [];
+        Storage::put($this->pending_file, json_encode($pendingstudents, JSON_PRETTY_PRINT));
 
-            $admin = Admin::where("email", $req->email)->first();
+        $approvedstudents = [];
+        Storage::put($this->approved_file, json_encode($approvedstudents, JSON_PRETTY_PRINT));
 
-            if (!$admin || !Hash::check($req->password, $admin->password)) {
-                return response()->json(["message" => "Admin Account Doesn't Exist"], 403);
-            }
-
-            $token = $admin->createToken("auth_token")->plainTextToken;
-
-            return response()->json([
-                "message" => "Login Successful",
-                "success" => true,
-                "token" => $token
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'An error occurred while processing your request.',
-                'error' => $e->getMessage(),
-                "success" => false
-            ], 500);
-        }
+        return response()->json(['message' => 'All deleted'], 200);
     }
 
     public function logout(Request $req)

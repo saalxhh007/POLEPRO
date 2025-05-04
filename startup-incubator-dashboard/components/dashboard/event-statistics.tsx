@@ -23,7 +23,6 @@ interface EventStatisticsProps {
 }
 
 export function EventStatistics({ eventId }: EventStatisticsProps) {
-  // Dans une application réelle, vous récupéreriez ces données depuis une API
   const viewsData = [
     { date: "01/06", views: 45 },
     { date: "02/06", views: 52 },

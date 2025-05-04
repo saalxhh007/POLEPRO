@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -8,16 +8,21 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
+import axios from "axios"
+import toast from "react-hot-toast"
 
 interface Participant {
-  id: string
+  id: number
   name: string
+  role: 'etudiant' | 'entrepreneur' | 'developpeur' | 'designer' | 'investisseur'
   email: string
-  status: "pending" | "confirmed" | "declined"
-  avatar?: string
+  phone: string
+  organisation: string
+  expectations: string
+  event_id: number
+  status: string
 }
 
 interface EventReminderSenderProps {
@@ -27,7 +32,9 @@ interface EventReminderSenderProps {
 export function EventReminderSender({ eventId }: EventReminderSenderProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("email")
-  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([])
+  const [selectedParticipantsidS, setSelectedParticipantsidS] = useState<number[]>([])
+  const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([])
+  const [confirmedParticipants, setConfirmedParticipants] = useState<Participant[]>([])
   const [selectAll, setSelectAll] = useState(false)
   const [emailSubject, setEmailSubject] = useState("Rappel: Événement à venir")
   const [emailContent, setEmailContent] = useState(
@@ -36,72 +43,71 @@ export function EventReminderSender({ eventId }: EventReminderSenderProps) {
   const [smsContent, setSmsContent] = useState(
     "Rappel: L'événement aura lieu le [DATE] à [HEURE] à [LIEU]. Nous avons hâte de vous y voir!",
   )
-
-  // Dans une application réelle, vous récupéreriez les participants depuis une API
-  const participants: Participant[] = [
-    {
-      id: "1",
-      name: "Ahmed Benali",
-      email: "ahmed.benali@example.com",
-      status: "confirmed",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "2",
-      name: "Samira Hadj",
-      email: "samira.hadj@example.com",
-      status: "confirmed",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "3",
-      name: "Karim Meziane",
-      email: "karim.meziane@example.com",
-      status: "pending",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "4",
-      name: "Leila Bouaziz",
-      email: "leila.bouaziz@example.com",
-      status: "confirmed",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "7",
-      name: "Youcef Kaddour",
-      email: "youcef.kaddour@example.com",
-      status: "confirmed",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-  ]
-
-  const confirmedParticipants = participants.filter((p) => p.status === "confirmed")
-
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  // cibon
   const handleSelectAll = (checked: boolean) => {
     setSelectAll(checked)
     if (checked) {
-      setSelectedParticipants(confirmedParticipants.map((p) => p.id))
+      setSelectedParticipants(selectedParticipants)
     } else {
       setSelectedParticipants([])
     }
   }
-
-  const handleSelectParticipant = (participantId: string, checked: boolean) => {
+  // 
+  const handleSelectParticipant = (participantId: number, checked: boolean) => {
     if (checked) {
-      setSelectedParticipants((prev) => [...prev, participantId])
+      setSelectedParticipantsidS((prev: any) => [...prev, participantId])
     } else {
-      setSelectedParticipants((prev) => prev.filter((id) => id !== participantId))
+      setSelectedParticipantsidS((prev) => prev.filter((id: any) => id !== participantId))
     }
   }
 
   const handleSendReminders = () => {
-    // Dans une application réelle, vous enverriez les rappels via une API
-    const method = activeTab === "email" ? "email" : "SMS"
-    alert(`Rappels envoyés par ${method} à ${selectedParticipants.length} participants`)
-    router.push("/dashboard/events")
+    try {
+      console.log(selectedParticipants);
+      
+      axios.post(`${apiUrl}/api/participants/send-eminders`, {
+        participantIds: selectedParticipantsidS,
+        subject: emailSubject,
+        message: activeTab === 'email' ? emailContent : smsContent,
+        type: activeTab,
+      })
+        .then(response => {
+          if (response.data.success) {
+            toast.success("Reminders Sent To Participants Mails")
+          }
+          else {
+            toast.error("Error In Sending Email's To Participants")
+          }
+        })
+        .catch(err => {
+          console.log(err);
+          toast.error("Error In Sending Email's To Participants")
+        })
+    } catch (error) {
+      
+    }
   }
+  
+  
+const fetchParticipants = () => {
+  axios.get(`${apiUrl}/api/participent/all`)
+    .then(response => {
+      const confirmed = response.data.participants.filter(
+        (participant: Participant) => participant.status === "confirmed"
+      );
+      setConfirmedParticipants(confirmed);
+      setSelectedParticipantsidS(confirmed.map((p: any) => p.id));
+      setSelectAll(true);
+    })
+    .catch(err => {
+      console.error("Failed to fetch participants:", err);
+    });
+};
 
+  useEffect(() => {
+    fetchParticipants()
+  }, [])
   return (
     <Card>
       <CardHeader>
@@ -161,13 +167,8 @@ export function EventReminderSender({ eventId }: EventReminderSenderProps) {
                   <div className="flex items-center gap-3">
                     <Checkbox
                       id={`participant-${participant.id}`}
-                      checked={selectedParticipants.includes(participant.id)}
                       onCheckedChange={(checked) => handleSelectParticipant(participant.id, checked as boolean)}
                     />
-                    <Avatar>
-                      <AvatarImage src={participant.avatar} alt={participant.name} />
-                      <AvatarFallback>{participant.name.substring(0, 2)}</AvatarFallback>
-                    </Avatar>
                     <div>
                       <p className="font-medium">{participant.name}</p>
                       <p className="text-sm text-muted-foreground">{participant.email}</p>
@@ -184,7 +185,7 @@ export function EventReminderSender({ eventId }: EventReminderSenderProps) {
               Annuler
             </Button>
             <Button onClick={handleSendReminders} disabled={selectedParticipants.length === 0}>
-              Envoyer {selectedParticipants.length > 0 && `(${selectedParticipants.length})`}
+              Envoyer {selectedParticipants.length > 0}
             </Button>
           </div>
         </div>

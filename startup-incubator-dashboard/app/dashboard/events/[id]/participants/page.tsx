@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 
-export default function EventParticipantsPage({ params }: { params: { id: string } }) {
+export default async function EventParticipantsPage({ params }: { params: { id: string } }) {
   return (
     <div className="flex flex-col gap-8">
       <DashboardHeader
@@ -23,4 +23,3 @@ export default function EventParticipantsPage({ params }: { params: { id: string
     </div>
   )
 }
-

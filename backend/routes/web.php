@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ParticipantsController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {

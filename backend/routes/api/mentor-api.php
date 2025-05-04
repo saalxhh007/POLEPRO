@@ -6,10 +6,12 @@ use App\Http\Controllers\Mentor\MentorController;
 // API Routes for managing the mantor database
 Route::prefix('')->group(function () {
     Route::get('/', [MentorController::class, 'index']); // Get all mentors
-    Route::get('/available', [MentorController::class, 'available']); // Get all available mentors
+    Route::get('/check/available', [MentorController::class, 'available']); // Get all available mentors
     Route::post('/', [MentorController::class, 'store']); // Create a new mentor
     Route::get('/{id}', [MentorController::class, 'show']); // Get a specific mentor
     Route::put('/{id}', [MentorController::class, 'update']); // Update a specific mentor
     Route::delete('/{id}', [MentorController::class, 'destroy']); // Delete a specific mentor
-    Route::post("/assign/{id}", [MentorController::class, "assignMentor"]); // Assign a mentor to a startup
+    Route::post('/startup/assign', [MentorController::class, 'assignMentor']); // Assign a mentor to a startup
+    Route::get('/startups/{id}', [MentorController::class, 'startupFromMentor']); // get all startups For A Mentor
+    Route::get('/sessions/{id}', [MentorController::class, 'sessionsFromMentor']); // get all sessions For A Mentor
 });

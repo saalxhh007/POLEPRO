@@ -1,7 +1,10 @@
 "use client"
 
+import { DialogFooter } from "@/components/ui/dialog"
+
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
+import axios from "axios"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { format } from "date-fns"
@@ -12,7 +15,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -27,85 +29,81 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
 
-const TEAMS = [
-  { id: 1, name: "Team Alpha" },
-  { id: 2, name: "Team Beta" },
-  { id: 3, name: "Team Gamma" },
-]
-
-const FACULTIES = [
-  { code: "ENG", name: "Engineering" },
-  { code: "BUS", name: "Business" },
-  { code: "SCI", name: "Science" },
-  { code: "ART", name: "Arts" },
-]
-
-const ADVISORS = [
-  { id: 1, name: "Dr. Smith" },
-  { id: 2, name: "Prof. Johnson" },
-  { id: 3, name: "Dr. Williams" },
-]
-
-const STAGES = ["Ideation", "Validation", "Early Development", "Growth", "Scaling"]
+interface StartupFormDialogProps {
+  fetchStartups: () => void;
+}
 
 const INDUSTRIES = ["Technology", "Healthcare", "Finance", "Education", "Retail", "Manufacturing", "Other"]
-
-const STATUS_OPTIONS = [
+const STATUS = [
   { value: "active", label: "Active" },
   { value: "warning", label: "Warning" },
   { value: "inactive", label: "Inactive" },
 ]
 
-const formSchema = z.object({
+const FACULTIES = [
+  { id: 12, name: "Faculté de mathématiques et de l'informatique et des sciences de la matière" },
+  { id: 8, name: " Faculté des sciences et de la technologie" },
+  { id: 9, name: "Faculté des sciences économiques, commerciales et des sciences de gestion" },
+  { id: 10, name: "Faculté de droit et des sciences politiques" },
+  { id: 11, name: "Faculté des sciences de la nature et de la vie et sciences de la terre et de l'univers" },
+  { id: 13, name: "Faculté des sciences humaines et sociales" },
+  { id: 14, name: "Faculté des lettres et des langues " },
+]
+
+const STAGES = ["Ideation", "Validation", "Early Development", "Growth", "Scaling"]
+
+const startupSchema = z.object({
   name: z.string().min(1, "Name is required"),
   industry: z.string().optional(),
   stage: z.string().optional(),
-  founders: z.array(z.string()).optional(),
   join_date: z.date().optional(),
   status: z.enum(["active", "warning", "inactive"]),
   progress: z.number().min(0).max(100).optional(),
-  team_id: z.number(),
-  idea_stage: z.string().min(1, "Idea stage is required"),
-  idea: z.string().min(1, "Idea is required"),
-  description: z.string().min(1, "Description is required"),
-  innovation: z.string().min(1, "Innovation is required"),
-  target_customers: z.string().min(1, "Target customers is required"),
-  originality: z.string().min(1, "Originality is required"),
-  sector: z.string().min(1, "Sector is required"),
-  other_details: z.string().min(1, "Other details are required"),
-  business_model: z.string().min(1, "Business model is required"),
-  supervisor_name: z.string().min(1, "Supervisor name is required"),
+  team_id: z.number().nonnegative(),
+  idea_stage: z.string(),
+  idea: z.string(),
+  description: z.string(),
+  innovation: z.string(),
+  target_customers: z.string(),
+  sector: z.string(),
+  originality: z.string(),
+  other_details: z.string(),
+  business_model: z.string(),
+  supervisor_name: z.string(),
   submission_date: z.date(),
   modified_date: z.date(),
   is_final: z.boolean(),
   in_pole: z.boolean(),
   approved_by_dean: z.boolean(),
-  faculty_code: z.string().min(1, "Faculty code is required"),
+  faculty_id: z.number().min(1, "Faculty is required"),
   advisor_id: z.number(),
-  advisor_grade: z.string().min(1, "Advisor grade is required"),
-  advisor_specialization: z.string().min(1, "Advisor specialization is required"),
-  advisor_faculty: z.string().min(1, "Advisor faculty is required"),
-  advisor_department: z.string().min(1, "Advisor department is required"),
-  idea_origin: z.string().min(1, "Idea origin is required"),
+  idea_origin: z.string(),
 })
 
-type FormValues = z.infer<typeof formSchema>
+type StartupValues = z.infer<typeof startupSchema>
 
-export function StartupFormDialog() {
+export function StartupFormDialog({ fetchStartups }: StartupFormDialogProps) {
   const [open, setOpen] = useState(false)
-  const [teams, setTeams] = useState([]);
-  const [faculties, setFaculties] = useState([]);
-  const [advisors, setAdvisors] = useState([]);
-  const [founderInputValue, setFounderInputValue] = useState("")
+  const [teams, setTeams] = useState<any[]>([])
+  const [advisors, setAdvisors] = useState<any[]>([])
+  const [advisorDetails, setAdvisorDetails] = useState({
+    grade: "",
+    specialization: "",
+    faculty: "",
+    department: "",
+  })
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<StartupValues>({
+    resolver: zodResolver(startupSchema),
     defaultValues: {
       name: "",
       industry: undefined,
       stage: undefined,
-      founders: [],
       join_date: new Date(),
       status: "active",
       progress: 0,
@@ -125,56 +123,90 @@ export function StartupFormDialog() {
       is_final: false,
       in_pole: false,
       approved_by_dean: false,
-      faculty_code: "",
+      faculty_id: undefined as unknown as number,
       advisor_id: undefined as unknown as number,
-      advisor_grade: "",
-      advisor_specialization: "",
-      advisor_faculty: "",
-      advisor_department: "",
       idea_origin: "",
     },
   })
+  // Send Create Startup Form
+  function onSubmit(data: StartupValues) {
+    const values = form.getValues()
 
-  function onSubmit(values: FormValues) {
-    console.log(values)
-    // Here you would typically send the data to your backend
-    alert("Form submitted successfully!")
-    setOpen(false)
+    const toastId = toast.loading("Submitting form...");
+
+    axios.post(`${apiUrl}/api/startup`, data, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    })
+      .then((response) => {
+        toast.success("Startup added successfully!", { id: toastId });
+        fetchStartups();
+        setOpen(false); 
+      }
+    )
+      .catch((error) => {
+        toast.error("Failed to submit form.", { id: toastId });})
   }
 
-  function addFounder() {
-    if (founderInputValue.trim() !== "") {
-      const currentFounders = form.getValues("founders") || []
-      form.setValue("founders", [...currentFounders, founderInputValue.trim()])
-      setFounderInputValue("")
+  const updateAdvisorDetails = (advisorId: string) => {
+    const selectedAdvisor = advisors.find((a) => a.id === Number(advisorId))
+
+    if (selectedAdvisor) {
+      const details = {
+        grade: selectedAdvisor.grade || "",
+        specialization: selectedAdvisor.specialization || "",
+        faculty: selectedAdvisor.faculty_name || "",
+        department: selectedAdvisor.department_name || "",
+      }
+
+      setAdvisorDetails(details)
+
+      form.setValue("advisor_id", selectedAdvisor.id)
+    } else {
+      setAdvisorDetails({
+        grade: "",
+        specialization: "",
+        faculty: "",
+        department: "",
+      })
+
+      form.setValue("advisor_id", 0);
     }
   }
-
-  function removeFounder(index: number) {
-    const currentFounders = form.getValues("founders") || []
-    form.setValue(
-      "founders",
-      currentFounders.filter((_, i) => i !== index),
-    )
-  }
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
-    console.log();
-    
+    axios
+      .get(`${apiUrl}/api/team/`)
+      .then((response) => setTeams(response.data.data))
+      .catch((error) => toast.error("Failed to fetch teams."))
   }, [])
+
+  useEffect(() => {
+    axios
+      .get(`${apiUrl}/api/advisors/`, { headers: {
+        Authorization: `Bearer ${accessToken}`
+      }})
+      .then((response) => setAdvisors(response.data.data))
+      .catch((error) =>  toast.error("Failed to fetch advisors."))
+  }, [])
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="default">Add New Startup</Button>
+        <Button variant="default" onClick={() => setOpen(true)}>
+          Add New Startup
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Startup</DialogTitle>
           <DialogDescription>Fill in the details to add a new startup to the system.</DialogDescription>
         </DialogHeader>
-
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form id="startup-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs defaultValue="basic" className="w-full">
               <TabsList className="grid grid-cols-4 w-full">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
@@ -182,7 +214,6 @@ export function StartupFormDialog() {
                 <TabsTrigger value="advisor">Advisor Info</TabsTrigger>
                 <TabsTrigger value="status">Status & Approvals</TabsTrigger>
               </TabsList>
-
               <TabsContent value="basic" className="space-y-4 pt-4">
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
@@ -198,7 +229,6 @@ export function StartupFormDialog() {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="industry"
@@ -224,7 +254,6 @@ export function StartupFormDialog() {
                     )}
                   />
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -250,7 +279,6 @@ export function StartupFormDialog() {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="join_date"
@@ -281,39 +309,7 @@ export function StartupFormDialog() {
                     )}
                   />
                 </div>
-
                 <div className="space-y-2">
-                  <FormLabel>Founders</FormLabel>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Add founder name"
-                      value={founderInputValue}
-                      onChange={(e) => setFounderInputValue(e.target.value)}
-                    />
-                    <Button type="button" onClick={addFounder} size="sm">
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {form.watch("founders")?.map((founder, index) => (
-                      <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                        {founder}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-4 w-4 p-0"
-                          onClick={() => removeFounder(index)}
-                        >
-                          <X className="h-3 w-3" />
-                          <span className="sr-only">Remove</span>
-                        </Button>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
                 <FormField
                   control={form.control}
                   name="team_id"
@@ -330,9 +326,36 @@ export function StartupFormDialog() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {TEAMS.map((team) => (
+                          {teams.map((team) => (
                             <SelectItem key={team.id} value={team.id.toString()}>
                               {team.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="faculty_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Faculty</FormLabel>
+                      <Select 
+                        onValueChange={(value) => field.onChange(Number(value))}
+                        defaultValue={field.value !== undefined ? String(field.value) : undefined} >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select faculty" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {FACULTIES.map((faculty) => (
+                            <SelectItem key={faculty.id} value={String(faculty.id)} >
+                              {faculty.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -495,16 +518,18 @@ export function StartupFormDialog() {
                     <FormItem>
                       <FormLabel>Advisor</FormLabel>
                       <Select
-                        onValueChange={(value) => field.onChange(Number.parseInt(value))}
-                        defaultValue={field.value?.toString()}
+                        onValueChange={(value) => {
+                          field.onChange(value)
+                          updateAdvisorDetails(value)
+                        }}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select advisor" />
+                            <SelectValue placeholder="Select An advisor" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {ADVISORS.map((advisor) => (
+                          {advisors.map((advisor) => (
                             <SelectItem key={advisor.id} value={advisor.id.toString()}>
                               {advisor.name}
                             </SelectItem>
@@ -515,92 +540,6 @@ export function StartupFormDialog() {
                     </FormItem>
                   )}
                 />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="advisor_grade"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Advisor Grade</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter advisor grade" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="advisor_specialization"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Advisor Specialization</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter specialization" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="advisor_faculty"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Advisor Faculty</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter advisor faculty" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="advisor_department"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Advisor Department</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter department" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="faculty_code"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Faculty</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select faculty" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {FACULTIES.map((faculty) => (
-                            <SelectItem key={faculty.code} value={faculty.code}>
-                              {faculty.name} ({faculty.code})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 <FormField
                   control={form.control}
                   name="supervisor_name"
@@ -614,6 +553,18 @@ export function StartupFormDialog() {
                     </FormItem>
                   )}
                 />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormLabel>Advisor Grade</FormLabel>
+                  <Input readOnly value={advisorDetails.grade}></Input>
+                  <FormLabel>Advisor Specialization</FormLabel>
+                  <Input readOnly value={advisorDetails.specialization}></Input>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormLabel>Advisor Faculty</FormLabel>
+                  <Input readOnly value={advisorDetails.faculty}></Input>
+                  <FormLabel>Advisor Department</FormLabel>
+                  <Input readOnly value={advisorDetails.department}></Input>
+                </div>
               </TabsContent>
               <TabsContent value="status" className="space-y-4 pt-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -630,7 +581,7 @@ export function StartupFormDialog() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {STATUS_OPTIONS.map((status) => (
+                            {STATUS.map((status) => (
                               <SelectItem key={status.value} value={status.value}>
                                 {status.label}
                               </SelectItem>
@@ -641,7 +592,6 @@ export function StartupFormDialog() {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="progress"
@@ -663,7 +613,6 @@ export function StartupFormDialog() {
                     )}
                   />
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -694,7 +643,6 @@ export function StartupFormDialog() {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="modified_date"
@@ -725,7 +673,6 @@ export function StartupFormDialog() {
                     )}
                   />
                 </div>
-
                 <div className="space-y-4">
                   <FormField
                     control={form.control}
@@ -742,7 +689,6 @@ export function StartupFormDialog() {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="in_pole"
@@ -758,7 +704,6 @@ export function StartupFormDialog() {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="approved_by_dean"
@@ -777,12 +722,13 @@ export function StartupFormDialog() {
                 </div>
               </TabsContent>
             </Tabs>
-
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit">Submit</Button>
+              <Button type="submit" form="startup-form">
+                Submit
+              </Button>
             </DialogFooter>
           </form>
         </Form>

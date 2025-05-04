@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+"use client"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { Overview } from "@/components/dashboard/overview"
@@ -9,13 +9,27 @@ import { ResourceAllocation } from "@/components/dashboard/resource-allocation"
 import { PerformanceChart } from "@/components/dashboard/performance-chart"
 import { IndustryDistribution } from "@/components/dashboard/industry-distribution"
 import { UpcomingDeadlines } from "@/components/dashboard/upcoming-deadlines"
-
-export const metadata: Metadata = {
-  title: "Dashboard",
-  description: "Admin dashboard for startup incubator platform",
-}
+import { useEffect } from "react"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
+import { useRouter } from "next/navigation"
 
 export default function DashboardPage() {
+  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
+  const role = useSelector((state: RootState) => state.auth.role);
+  const router = useRouter()
+  useEffect(() => {
+    console.log(isAuthenticated);
+    
+    if (!isAuthenticated || role !== 'admin') {
+      router.push('/unauthorized');
+    }
+  }, [isAuthenticated, role, router]);
+  
+  if (!isAuthenticated || role !== 'admin') {
+    return null;
+  }
+  else {
   return (
     <DashboardShell>
       <DashboardHeader heading="Dashboard" text="Welcome to your startup incubator admin dashboard." />
@@ -39,3 +53,4 @@ export default function DashboardPage() {
   )
 }
 
+}

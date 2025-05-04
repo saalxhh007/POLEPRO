@@ -34,4 +34,9 @@ class Student extends Authenticatable
         "password",
         "refresh_token"
     ];
+
+    public function teamMemberships()
+    {
+        return $this->hasMany(TeamMember::class);
+    }
 }

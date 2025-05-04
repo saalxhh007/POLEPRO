@@ -30,6 +30,11 @@ export function DashboardNav() {
       title: "Overview",
     },
     {
+      href: "/dashboard/requests",
+      icon: LayoutDashboard,
+      title: "Requests",
+    },
+    {
       href: "/dashboard/startups",
       icon: Briefcase,
       title: "Startups",

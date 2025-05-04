@@ -8,4 +8,13 @@ export default defineConfig({
             refresh: true,
         }),
     ],
+    server: {
+        cors: {
+            origin: [
+                'http://localhost:3000',
+                'https://backend.laravel',  
+                'http://admin.laravel:8566',
+            ]
+        }
+    }
 });

@@ -16,56 +16,96 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal, Search, Filter } from "lucide-react"
 import { StartupFormDialog } from "./add-startup-form"
+import { StartupDetailsDialog } from "./startup-details-dialog"
+import { EditStartupDialog } from "./edit-startup"
+import { AssignMentorDialog } from "./assign-mentor-dialog"
+import { ScheduleMeetingDialog } from "./schedule-meeting-dialog"
+import axios from "axios"
+import toast from "react-hot-toast"
 
 export function StartupsList() {
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>("")
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const [startups, setStartups] = useState<any[]>([])
+  const [selectedStartup, setSelectedStartup] = useState<any>(null)
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [assignMentorDialogOpen, setAssignMentorDialogOpen] = useState(false)
+  const [scheduleMeetingDialogOpen, setScheduleMeetingDialogOpen] = useState(false)
 
   const fetchStartups = async () => {
-    try {
-      const res = await fetch(`${apiUrl}/api/startup/`);
-      const data = await res.json();
-      console.log(data);
-      
-      if (data.status && Array.isArray(data.data)) {
-        setStartups(data.data);
-      } else {
-        setStartups([]);
-      }
-    } catch (error) {
-      console.error('Failed to fetch startups:', error);
-    }
-  };
+
+      axios.get(`${apiUrl}/api/startup/`)
+        .then((response) => {
+          if (response.data.success) {
+            setStartups(response.data.data)
+          }
+          else {
+            setStartups([])
+          }
+         })
+      .catch((err)=>{
+        console.error("Failed to fetch startups:", err)
+      })
+  }
 
   const filteredStartups = startups.filter(
     (startup) =>
       startup.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       startup.industry.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      startup.founders.toLowerCase().includes(searchQuery.toLowerCase()),
-  ) 
+      (typeof startup.founders === "string" && startup.founders.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (Array.isArray(startup.founders) &&
+        startup.founders.some((founder: string) => founder.toLowerCase().includes(searchQuery.toLowerCase()))),
+  )
 
-  const removeStartup = async (projectId: number) => {
-    try {
-    const res = await fetch(`${apiUrl}/api/startup/${projectId}`, {
-      method: 'DELETE',
-    });
-      
-      const result = await res.json();
-      
-    if (res.ok) {
-      alert('Startup deleted successfully!');
-      fetchStartups();
-    } else {
-      alert(result.message || 'Failed to delete startup');
-    }
-    } catch (error) {
-      
-    }
+  const removeStartup = async (id: number) => {
+      axios.delete(`${apiUrl}/api/startup/${id}`, {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+        .then((response) => {
+          console.log(response.data);
+          if (response.data.success) {
+            
+            toast.success("Startup Deleted successfully!");
+            fetchStartups()
+          }
+          else {
+            toast.error("Error removing startup!");
+          }
+        })
+        .catch((err) => {
+          console.log(err);
+          toast.error("Error removing startup!");
+        })
   }
+
+  const viewStartupDetails = (startup: any) => {
+    setSelectedStartup(startup)
+    setDetailsDialogOpen(true)
+  }
+
+  const editStartup = (startup: any) => {
+    setSelectedStartup(startup)
+    setEditDialogOpen(true)
+  }
+
+  const assignMentor = (startup: any) => {
+    setSelectedStartup(startup)
+    setAssignMentorDialogOpen(true)
+  }
+
+  const scheduleMeeting = (startup: any) => {
+    setSelectedStartup(startup)
+    setScheduleMeetingDialogOpen(true)
+  }
+
   useEffect(() => {
-    fetchStartups();
-  }, []);
+    fetchStartups()
+  }, [])
+
   return (
     <Card>
       <CardContent className="p-6">
@@ -85,7 +125,7 @@ export function StartupsList() {
               <Filter className="h-4 w-4" />
             </Button>
           </div>
-          <StartupFormDialog />
+          <StartupFormDialog fetchStartups={fetchStartups} />
         </div>
 
         <div className="rounded-md border">
@@ -108,8 +148,10 @@ export function StartupsList() {
                     <TableCell className="font-medium">{startup.name}</TableCell>
                     <TableCell>{startup.industry}</TableCell>
                     <TableCell>{startup.stage}</TableCell>
-                    <TableCell>{startup.founders}</TableCell>
-                    <TableCell>{startup.joinDate}</TableCell>
+                    <TableCell>
+                      {Array.isArray(startup.founders) ? startup.founders.join(", ") : startup.founders}
+                    </TableCell>
+                    <TableCell>{startup.join_date}</TableCell>
                     <TableCell>
                       <Badge variant={startup.status === "active" ? "default" : "destructive"}>
                         {startup.status === "active" ? "Active" : "Warning"}
@@ -125,13 +167,18 @@ export function StartupsList() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem>View details</DropdownMenuItem>
-                          <DropdownMenuItem>Edit startup</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => viewStartupDetails(startup)}>View details</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => editStartup(startup)}>Edit startup</DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem>Assign mentor</DropdownMenuItem>
-                          <DropdownMenuItem>Schedule meeting</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => assignMentor(startup)}>Assign mentor</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => scheduleMeeting(startup)}>Schedule meeting</DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={()=>removeStartup(startup.project_id)} className="text-destructive">Remove from program</DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => removeStartup(startup.id)}
+                            className="text-destructive"
+                          >
+                            Remove from program
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -148,6 +195,34 @@ export function StartupsList() {
           </Table>
         </div>
       </CardContent>
+
+      {selectedStartup && (
+        <>
+          <StartupDetailsDialog
+            startup={selectedStartup}
+            open={detailsDialogOpen}
+            onOpenChange={setDetailsDialogOpen}
+          />
+          <EditStartupDialog
+            startup={selectedStartup}
+            open={editDialogOpen}
+            onOpenChange={setEditDialogOpen}
+            onSuccess={fetchStartups}
+          />
+          <AssignMentorDialog
+            startup={selectedStartup}
+            open={assignMentorDialogOpen}
+            onOpenChange={setAssignMentorDialogOpen}
+            onSuccess={fetchStartups}
+          />
+          <ScheduleMeetingDialog
+            startup={selectedStartup}
+            open={scheduleMeetingDialogOpen}
+            onOpenChange={setScheduleMeetingDialogOpen}
+            onSuccess={fetchStartups}
+          />
+        </>
+      )}
     </Card>
   )
 }

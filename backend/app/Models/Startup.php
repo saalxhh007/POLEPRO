@@ -3,26 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Model;
 
-class Startup extends Authenticatable
+class Startup extends Model
 {
-    use HasFactory, Notifiable;
+    use HasFactory;
 
     protected $table = 'startup';
+    protected $primaryKey = 'id';
     public $timestamps = false;
-    protected $primaryKey = 'project_id';
-    public $incrementing = true;
-    protected $keyType = 'int';
 
     protected $fillable = [
-        'id',
         'name',
         'industry',
         'stage',
-        'founders',
         'join_date',
         'status',
         'progress',
@@ -42,14 +36,22 @@ class Startup extends Authenticatable
         'is_final',
         'in_pole',
         'approved_by_dean',
-        'faculty_code',
+        'faculty_id',
         'advisor_id',
-        'advisor_grade',
-        'advisor_specialization',
-        'advisor_faculty',
-        'advisor_department',
         'idea_origin',
     ];
 
-    protected $hidden = [];
+    protected $casts = [
+        'join_date' => 'date',
+        'submission_date' => 'datetime',
+        'modified_date' => 'datetime',
+        'is_final' => 'boolean',
+        'in_pole' => 'boolean',
+        'approved_by_dean' => 'boolean',
+    ];
+
+    public function mentors()
+    {
+        return $this->belongsToMany(Mentor::class, 'mentor_startup');
+    }
 }

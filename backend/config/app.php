@@ -2,6 +2,8 @@
 
 return [
 
+    'frontend_url' => env('FRONTEND_URL', 'http://127.0.0.1:3000'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Name
@@ -123,4 +125,5 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'role' => \App\Http\Middleware\RoleMiddleware::class,
 ];

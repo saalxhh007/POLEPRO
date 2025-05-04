@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Model;
 
-class Mentor extends Authenticatable
+class Mentor extends Model
 {
     public $timestamps = false;
     protected $fillable = [
@@ -14,7 +14,13 @@ class Mentor extends Authenticatable
         "company",
         "startups",
         "availability",
+        "bio",
         "image"
     ];
+
+    public function startups()
+    {
+        return $this->belongsToMany(Startup::class, 'mentor_startup');
+    }
 }
 // enum('available','busy')

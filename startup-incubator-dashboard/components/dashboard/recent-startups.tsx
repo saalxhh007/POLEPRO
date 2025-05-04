@@ -20,6 +20,10 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import axios from "axios"
+import { error } from "console"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
 
 interface RecentStartupsProps {
   className?: string
@@ -28,21 +32,25 @@ interface RecentStartupsProps {
 export function RecentStartups({ className }: RecentStartupsProps) {
   const [startups, setStartups] = useState<any[] | null>(null)
   const [hasMounted, setHasMounted] = useState(false)
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
     setHasMounted(true)
 
     const fetchRecentStartups = async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/startup/recent`)
-        if (!res.ok) throw new Error("Network response was not ok")
-        const data = await res.json()
-        setStartups(data)
-      } catch (error) {
+      axios
+        .get(`${apiUrl}/api/startup/recent`,{ headers: {
+          Authorization: `Bearer ${accessToken}`,
+        }})
+        .then(res => {
+          console.log(res);
+          setStartups(res.data)
+        })
+      .catch(error => {
         console.error("Error fetching recent startups:", error)
         setStartups([])
-      }
+      })
     }
 
     fetchRecentStartups()

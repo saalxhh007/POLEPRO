@@ -27,7 +27,10 @@ class TeamController extends Controller
                 "data" => $teams,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
-            throw $th;
+            return response()->json([
+                "status" => false,
+                "error" => $th->getMessage(),
+            ], Response::HTTP_OK);
         }
     }
     // Create A Team
@@ -35,7 +38,7 @@ class TeamController extends Controller
     {
         try {
             $data = request()->validate([
-                "nom" => "required",
+                "name" => "required",
                 "number_of_members" => "required"
             ]);
 
@@ -45,7 +48,12 @@ class TeamController extends Controller
                 ['counted_obj' => 'teams'],
                 ['counter' => 0]
             );
-            $team->increment('counter');
+
+            $stats = Stats::where('counted_obj', 'teams')->first();
+            if ($stats) {
+                $stats->counter = max(0, $stats->counter + 1);
+                $stats->save();
+            }
 
             return response()->json([
                 'status' => true,

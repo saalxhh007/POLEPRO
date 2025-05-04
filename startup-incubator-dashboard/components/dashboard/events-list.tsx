@@ -34,19 +34,36 @@ import {
 import { AddEventForm } from "./add-event-form"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import axios from "axios"
+import { error } from "console"
+import toast from "react-hot-toast"
 
 export function EventsList() {
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
   const [events, setEvents] = useState<any[]>([])
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
-
   const fetchEvents = async () => {
-    const res = await fetch(`${apiUrl}/api/event/`)
-    const data = await res.json()
-    console.log(data);
-    
-  }
+    axios
+      .get(`${apiUrl}/api/event/`)
+      .then((response) => {
+        if (response.data.status) {
+          const formattedEvents = response.data.data.map((element: any) => {
+            const formattedDate = new Date(element.date).toISOString().split('T')[0];
+            return {
+              ...element,
+              date: formattedDate
+            };
+          });
+          setEvents(formattedEvents);
+        }
+      })
+      .catch((error) => {
+        console.log(error);
+      });
+  };
+  
+  
   const filteredEvents = events.filter(
     (event) =>
       event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -82,7 +99,7 @@ export function EventsList() {
     window.open(`/events/${eventId}`, "_blank")
   }
 
-  const handleEditEvent = (eventId: string) => {
+  const handleEditEvent = (eventId: number) => {
     router.push(`/dashboard/events/${eventId}/edit`)
   }
 
@@ -107,15 +124,34 @@ export function EventsList() {
     router.push(`/dashboard/events/${eventId}/share`)
   }
 
+  // Completed
   const handleCancelEvent = (eventId: string) => {
-    // Dans une application réelle, ceci annulerait l'événement
-    if (confirm(`Êtes-vous sûr de vouloir annuler l'événement ${eventId} ?`)) {
-      alert(`Événement ${eventId} annulé`)
+    try {
+      const toastId = toast.loading("Deleting Event ...")
+
+      if (confirm(`Are You Sure About Deleting This Event ?`)) {
+        axios.delete(`${apiUrl}/api/event/${eventId}`)
+        .then((response) => {
+          toast.success(`${response.data.message}!`, { id: toastId })
+          if (fetchEvents) fetchEvents()
+        })
+        .catch(error => {
+          console.log(error)
+          toast.error("Error While Deleting The Event")
+        })
+      }
+      else {
+        toast.dismiss("Dissmised")
+      }
+    } catch (error) {
+      
     }
   }
 
   useEffect(() => {
     fetchEvents()
+    console.log(events);
+    
   }, [])
   return (
     <Card>
@@ -151,7 +187,7 @@ export function EventsList() {
                 <span>Voir public</span>
               </Button>
             </Link>
-            <AddEventForm />
+            <AddEventForm fetchEvents={fetchEvents} />
           </div>
         </div>
 
@@ -163,7 +199,7 @@ export function EventsList() {
                 <TableHead>Type</TableHead>
                 <TableHead>Date & Time</TableHead>
                 <TableHead>Location</TableHead>
-                <TableHead>Attendees</TableHead>
+                <TableHead>Capacity</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
@@ -195,7 +231,7 @@ export function EventsList() {
                     <TableCell>
                       <div className="flex items-center">
                         <Users className="mr-1 h-3 w-3 text-muted-foreground" />
-                        <span>{event.attendees}</span>
+                        <span>{event.capacity}</span>
                       </div>
                     </TableCell>
                     <TableCell>

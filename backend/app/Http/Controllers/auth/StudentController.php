@@ -4,7 +4,11 @@ namespace App\Http\Controllers\auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\Student;
+use App\Models\Team;
+use App\Models\TeamMember;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -24,6 +28,9 @@ class StudentController extends Controller
                 "last_name_ar" => "required|string",
                 "email" => "required|email",
                 "idea" => "required|string",
+                // team
+                "name" => "required|string",
+                "number_of_members" => "required"
             ]);
 
             $formData = [
@@ -33,6 +40,8 @@ class StudentController extends Controller
                 "last_name_ar" => $req->last_name_ar,
                 "email" => $req->email,
                 "idea" => $req->idea,
+                "name" => $req->name,
+                "number_of_members" => $req->number_of_members
             ];
 
 
@@ -63,54 +72,75 @@ class StudentController extends Controller
             foreach ($approvedStudents as $index => $approvedStudent) {
                 if ($approvedStudent["id"] === $id) {
                     $req->validate([
-                        "matricule" => "string|min:8|max:8",
+                        "matricule" => "string",
                         "email" => "email|unique:student,email",
                         "phone_number" => "required|string|unique:student,phone_number",
-                        "birth_date" => "required|date|date_format:Y-m-d",
+                        "birth_date" => "required|string",
                         "gender" => "required|in:m,f",
-                        "last_name_ar" => "string|regex:/^[\p{Arabic} ]+$/u|max:50",
-                        "first_name_ar" => "regex:/^[\p{Arabic} ]+$/u|max:50",
-                        "Domain_ar" => "required|regex:/^[\p{Arabic} ]+$/u|max:50",
-                        "option_ar" => "required|regex:/^[\p{Arabic} ]+$/u|max:50",
-                        "diploma_ar" => "required|regex:/^[\p{Arabic} ]+$/u|max:50",
+                        "last_name_ar" => "string|required|max:50",
+                        "first_name_ar" => "required|string|max:50",
+                        "Domain_ar" => "required|string|max:50",
+                        "option_ar" => "required|string|max:50",
+                        "diploma_ar" => "required|string|max:50",
                         "faculty_code" => "required|string",
                         "department_code" => "required|string",
                         "password" => "required|string|min:8|regex:/[A-Z]/|regex:/[0-9]/|regex:/[@$!%*?&]/",
+                        // team
+                        "team_name" => "required|string",
+                        "number_of_members" => "required"
+                    ]);
+
+                    $birthDate = Carbon::parse($req->birth_date);
+
+                    if (!$birthDate) {
+                        return response()->json([
+                            'message' => 'Invalid birth date format.',
+                            'success' => false
+                        ], 422); // Unprocessable Entity
+                    }
+
+                    $hashedPassword = Hash::make($req->password);
+
+                    $student = Student::create([
+                        "matricule" => $approvedStudent["matricule"],
+                        "email" => $approvedStudent["email"],
+                        "phone_number" => $req->phone_number,
+                        "birth_date" => $birthDate->format('Y-m-d'),
+                        "gender" => $req->gender,
+                        "last_name_ar" => $approvedStudent["last_name_ar"],
+                        "first_name_ar" => $approvedStudent["first_name_ar"],
+                        "Domain_ar" => $req->Domain_ar,
+                        "option_ar" => $req->option_ar,
+                        "diploma_ar" => $req->diploma_ar,
+                        "faculty_code" => $req->faculty_code,
+                        "department_code" => $req->department_code,
+                        "password" => $hashedPassword,
+                    ]);
+
+                    $team = Team::create([
+                        "number_of_members" => $req->number_of_members,
+                        "name" => $req->team_name,
+                    ]);
+
+                    TeamMember::create([
+                        "team_id" => $team->id,
+                        "student_id" => $student->id,
+                        "role" => "founder",
+                    ]);
+
+                    unset($approvedStudents[$index]);
+                    Storage::put(
+                        'approved_students.json',
+                        json_encode(array_values($approvedStudents), JSON_PRETTY_PRINT)
+                    );
+
+                    return response()->json([
+                        'message' => 'Account Created Successfully',
+                        "success" => true,
                     ]);
                 }
-
-                $hashedPassword = Hash::make($req->password);
-
-                $student = Student::create([
-                    "matricule" => $approvedStudent["matricule"],
-                    "email" => $approvedStudent["email"],
-                    "phone_number" => $req->phone_number,
-                    "birth_date" => $req->birth_date,
-                    "gender" => $req->gender,
-                    "last_name_ar" => $approvedStudent["last_name_ar"],
-                    "first_name_ar" => $approvedStudent["first_name_ar"],
-                    "Domain_ar" => $req->Domain_ar,
-                    "option_ar" => $req->option_ar,
-                    "diploma_ar" => $req->diploma_ar,
-                    "faculty_code" => $req->faculty_code,
-                    "department_code"  => $req->department_code,
-                    "password" => $hashedPassword,
-                ]);
-
-                unset($approvedStudents[$index]);
-                Storage::put(
-                    'approved_students.json',
-                    json_encode(array_values($approvedStudents), JSON_PRETTY_PRINT)
-                );
-
-                return response()->json([
-                    'message' => 'Account Created Successfully',
-                    "success" => true,
-                    'student' => $student,
-                ]);
             }
         } catch (\Throwable $e) {
-
             return response()->json([
                 'message' => 'An error occurred while processing your request.',
                 'error' => $e->getMessage(),
@@ -194,18 +224,30 @@ class StudentController extends Controller
         }
     }
 
-    public function refreshToken(Request $req)
+    public function decryptStudentToken(Request $request)
     {
-        $req->validate(['refresh_token' => 'required']);
+        $token = $request->input('token');
 
-        $student = Student::where('refresh_token', $req->refresh_token)->first();
-
-        if (!$student) {
-            return response()->json(['message' => 'Invalid refresh token'], 401);
+        if (!$token) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token is missing.'
+            ], 422);
         }
 
-        $newAccessToken = Str::random(60);
+        try {
+            $decrypted = Crypt::decrypt($token);
 
-        return response()->json(['access_token' => $newAccessToken]);
+            return response()->json([
+                'success' => true,
+                'student' => $decrypted,
+            ]);
+        } catch (\Throwable $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 400);
+        }
     }
 }

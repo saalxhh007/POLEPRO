@@ -1,27 +1,26 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Search, Filter, MoreHorizontal, Check, X, Mail, Phone, Download, UserPlus } from "lucide-react"
+import { Search, Filter, MoreHorizontal, Check, X, Mail, Phone, Download } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import axios from "axios"
+import { AddParticipantForm } from "../events/add-participant-form"
 
-interface Participant {
+type Participant = {
   id: string
   name: string
   email: string
-  phone?: string
+  phone: string
   organization?: string
-  role?: string
+  role: string
   status: "pending" | "confirmed" | "declined"
-  registrationDate: string
-  notes?: string
-  avatar?: string
+  expectations: string
 }
 
 interface EventParticipantsManagerProps {
@@ -31,95 +30,26 @@ interface EventParticipantsManagerProps {
 export function EventParticipantsManager({ eventId }: EventParticipantsManagerProps) {
   const [activeTab, setActiveTab] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [participants, setParticipants] = useState<Participant[]>([])
 
-  // Dans une application réelle, vous récupéreriez les participants depuis une API
-  const [participants, setParticipants] = useState<Participant[]>([
-    {
-      id: "1",
-      name: "Ahmed Benali",
-      email: "ahmed.benali@example.com",
-      phone: "+213 555 123 456",
-      organization: "Université de Guelma",
-      role: "Étudiant",
-      status: "confirmed",
-      registrationDate: "2025-05-15",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "2",
-      name: "Samira Hadj",
-      email: "samira.hadj@example.com",
-      phone: "+213 555 234 567",
-      organization: "TechInnovate",
-      role: "Entrepreneure",
-      status: "confirmed",
-      registrationDate: "2025-05-16",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "3",
-      name: "Karim Meziane",
-      email: "karim.meziane@example.com",
-      phone: "+213 555 345 678",
-      organization: "StartupAlgeria",
-      role: "Développeur",
-      status: "pending",
-      registrationDate: "2025-05-17",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "4",
-      name: "Leila Bouaziz",
-      email: "leila.bouaziz@example.com",
-      phone: "+213 555 456 789",
-      organization: "Digital Solutions",
-      role: "Designer",
-      status: "confirmed",
-      registrationDate: "2025-05-18",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "5",
-      name: "Omar Taleb",
-      email: "omar.taleb@example.com",
-      phone: "+213 555 567 890",
-      organization: "Incubateur BAG",
-      role: "Investisseur",
-      status: "declined",
-      registrationDate: "2025-05-19",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "6",
-      name: "Fatima Zahra",
-      email: "fatima.zahra@example.com",
-      phone: "+213 555 678 901",
-      organization: "FinTech Algérie",
-      role: "Étudiante",
-      status: "pending",
-      registrationDate: "2025-05-20",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: "7",
-      name: "Youcef Kaddour",
-      email: "youcef.kaddour@example.com",
-      phone: "+213 555 789 012",
-      organization: "AgriTech Solutions",
-      role: "Entrepreneur",
-      status: "confirmed",
-      registrationDate: "2025-05-21",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-  ])
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  const fetchParticipants = async () => {
+    try {
+      axios
+        .get(`${apiUrl}/api/participent/all`)
+        .then((response) => {
+          setParticipants(response.data.participants)
+        })
+        .catch((err) => {
+          console.error(err)
+        })
+    } catch {}
+  }
 
   const filteredParticipants = participants.filter((participant) => {
-    // Filtrer par statut si nécessaire
-    if (activeTab !== "all" && participant.status !== activeTab) {
-      return false
-    }
+    if (activeTab !== "all" && participant.status !== activeTab) return false
 
-    // Filtrer par recherche
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       return (
@@ -134,11 +64,42 @@ export function EventParticipantsManager({ eventId }: EventParticipantsManagerPr
   })
 
   const handleApproveParticipant = (participantId: string) => {
-    setParticipants((prev) => prev.map((p) => (p.id === participantId ? { ...p, status: "confirmed" as const } : p)))
+    try {
+      axios
+        .post(`${apiUrl}/api/participent/admin/approve/${participantId}`, {
+          status: "confirmed",
+        })
+        .then((response) => {
+          setParticipants((prev) =>
+            prev.map((p) => (p.id === participantId ? { ...p, status: "confirmed" as const } : p)),
+          )
+          console.log(response.data)
+        })
+      fetchParticipants().catch((err) => {
+        console.error("Failed to approve participant:", err)
+      })
+    } catch (error) {
+      console.error("Failed to approve participant:", error)
+    }
   }
 
   const handleDeclineParticipant = (participantId: string) => {
-    setParticipants((prev) => prev.map((p) => (p.id === participantId ? { ...p, status: "declined" as const } : p)))
+    try {
+      axios
+        .post(`${apiUrl}/api/participent/admin/approve/${participantId}`, {
+          status: "declined",
+        })
+        .then((response) => {
+          setParticipants((prev) =>
+            prev.map((p) => (p.id === participantId ? { ...p, status: "declined" as const } : p)),
+          )
+        })
+      fetchParticipants().catch((err) => {
+        console.error("Failed to approve participant:", err)
+      })
+    } catch (error) {
+      console.error("Failed to approve participant:", error)
+    }
   }
 
   const handleSendEmail = (participantId: string) => {
@@ -146,10 +107,27 @@ export function EventParticipantsManager({ eventId }: EventParticipantsManagerPr
     alert(`Envoi d'un email à ${participant?.name} (${participant?.email})`)
   }
 
-  const handleExportParticipants = () => {
-    alert("Exportation de la liste des participants au format CSV")
-  }
-
+  const handleExportParticipants = async () => {
+    axios.get(`${apiUrl}/api/participants/export`, {
+      responseType: 'blob',
+    })
+      .then(response => {
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'participants.csv');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      })
+      .catch(err => {
+        console.error("Failed to export participants:", err);
+      })
+  };
+  
+  useEffect(() => {
+    fetchParticipants()
+  }, [])
   return (
     <Card>
       <CardHeader>
@@ -178,10 +156,7 @@ export function EventParticipantsManager({ eventId }: EventParticipantsManagerPr
               <Download className="h-4 w-4" />
               <span>Exporter</span>
             </Button>
-            <Button className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4" />
-              <span>Ajouter un participant</span>
-            </Button>
+            <AddParticipantForm onSuccess={fetchParticipants} />
           </div>
         </div>
 
@@ -201,7 +176,7 @@ export function EventParticipantsManager({ eventId }: EventParticipantsManagerPr
                 <TableHead>Participant</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Organisation</TableHead>
-                <TableHead>Date d'inscription</TableHead>
+                <TableHead>Expectations</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
@@ -212,10 +187,6 @@ export function EventParticipantsManager({ eventId }: EventParticipantsManagerPr
                   <TableRow key={participant.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarImage src={participant.avatar} alt={participant.name} />
-                          <AvatarFallback>{participant.name.substring(0, 2)}</AvatarFallback>
-                        </Avatar>
                         <div>
                           <p className="font-medium">{participant.name}</p>
                           <p className="text-sm text-muted-foreground">{participant.role}</p>
@@ -237,7 +208,7 @@ export function EventParticipantsManager({ eventId }: EventParticipantsManagerPr
                       </div>
                     </TableCell>
                     <TableCell>{participant.organization || "-"}</TableCell>
-                    <TableCell>{participant.registrationDate}</TableCell>
+                    <TableCell>{participant.expectations}</TableCell>
                     <TableCell>
                       <Badge
                         variant={
@@ -321,4 +292,3 @@ export function EventParticipantsManager({ eventId }: EventParticipantsManagerPr
     </Card>
   )
 }
-

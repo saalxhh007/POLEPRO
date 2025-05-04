@@ -1,5 +1,4 @@
 "use client"
-
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -10,100 +9,28 @@ import Image from "next/image"
 import Link from "next/link"
 import { Calendar, Clock, MapPin, Search, Users, Grid3X3, List, Share2, UserPlus } from "lucide-react"
 import { EventsFilter } from "@/components/events/events-filter"
+import { useEffect, useState } from "react"
+import axios from "axios"
 
 export default function EventsPage() {
-  // Dans une application réelle, vous récupéreriez les événements à partir d'une API ou d'une base de données
-  const events = [
-    {
-      id: "1",
-      title: "Atelier d'Innovation Entrepreneuriale",
-      description:
-        "Cet atelier intensif vous permettra d'explorer les méthodologies d'innovation les plus récentes et d'apprendre à les appliquer à votre projet entrepreneurial.",
-      date: "15 Juin 2025",
-      time: "14:00 - 17:00",
-      location: "Université de Guelma, Salle de Conférence A",
-      capacity: 50,
-      registered: 32,
-      status: "upcoming",
-      category: "workshop",
-      image: "/placeholder.svg?height=200&width=400",
-      poster: "/placeholder.svg?height=800&width=600",
-    },
-    {
-      id: "2",
-      title: "Pitch Perfect: Présenter son projet aux investisseurs",
-      description:
-        "Apprenez à structurer et présenter efficacement votre pitch pour convaincre les investisseurs et partenaires potentiels.",
-      date: "20 Juin 2025",
-      time: "10:00 - 12:30",
-      location: "Incubateur BAG Services, Salle Pitch",
-      capacity: 30,
-      registered: 28,
-      status: "upcoming",
-      category: "workshop",
-      image: "/placeholder.svg?height=200&width=400",
-      poster: "/placeholder.svg?height=800&width=600",
-    },
-    {
-      id: "3",
-      title: "Financement des startups: Options et stratégies",
-      description:
-        "Découvrez les différentes options de financement disponibles pour les startups et les stratégies pour les obtenir.",
-      date: "25 Juin 2025",
-      time: "14:00 - 16:00",
-      location: "Université de Guelma, Amphithéâtre B",
-      capacity: 80,
-      registered: 45,
-      status: "upcoming",
-      category: "conference",
-      image: "/placeholder.svg?height=200&width=400",
-      poster: "/placeholder.svg?height=800&width=600",
-    },
-    {
-      id: "4",
-      title: "Journée Portes Ouvertes de l'Incubateur",
-      description: "Venez découvrir notre incubateur, rencontrer nos startups et échanger avec notre équipe.",
-      date: "30 Juin 2025",
-      time: "09:00 - 17:00",
-      location: "Incubateur BAG Services",
-      capacity: 200,
-      registered: 120,
-      status: "upcoming",
-      category: "open-day",
-      image: "/placeholder.svg?height=200&width=400",
-      poster: "/placeholder.svg?height=800&width=600",
-    },
-    {
-      id: "5",
-      title: "Masterclass: Growth Hacking pour startups",
-      description:
-        "Techniques et stratégies de growth hacking pour accélérer la croissance de votre startup avec un budget limité.",
-      date: "5 Juillet 2025",
-      time: "14:00 - 17:00",
-      location: "Université de Guelma, Salle de Conférence C",
-      capacity: 40,
-      registered: 15,
-      status: "upcoming",
-      category: "masterclass",
-      image: "/placeholder.svg?height=200&width=400",
-      poster: "/placeholder.svg?height=800&width=600",
-    },
-    {
-      id: "6",
-      title: "Networking: Rencontre Entrepreneurs & Mentors",
-      description: "Une soirée de networking pour connecter entrepreneurs et mentors dans une ambiance conviviale.",
-      date: "10 Juillet 2025",
-      time: "18:00 - 21:00",
-      location: "Hôtel Guelma Palace, Salle de Réception",
-      capacity: 100,
-      registered: 65,
-      status: "upcoming",
-      category: "networking",
-      image: "/placeholder.svg?height=200&width=400",
-      poster: "/placeholder.svg?height=800&width=600",
-    },
-  ]
+  const [events, setEvents] = useState<any[]>([])
+  
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
+  const fetchEvents = () => {
+    axios.get(`${apiUrl}/api/event`)
+      .then(response => {
+        setEvents(response.data.data)
+       })
+      .catch(err => {
+        console.error('Error fetching events:', err);
+      })
+  }
+  
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+  
   return (
     <div className="container py-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">

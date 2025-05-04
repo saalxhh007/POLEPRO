@@ -3,17 +3,30 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Foundation\Auth\User as Authenticatable;
 
-class Event extends Authenticatable
+class Event extends Model
 {
 
     public $timestamps = false;
     protected $fillable = [
         'title',
+        'type',
+        'description',
         'date',
         'time',
         'location',
-        'type',
+        'capacity',
+        'tags',
+        'fiche',
+        'titre_fiche',
+        'intervenant_id',
+        'alternatif_fiche',
+        'supp',
+    ];
+
+    protected $casts = [
+        'date' => 'date',
+        'time' => 'string',
+        'capacity' => 'integer',
     ];
 }
