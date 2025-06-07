@@ -15,12 +15,10 @@ class Mentor extends Model
         "startups",
         "availability",
         "bio",
-        "image"
+        "image",
+        "refresh_token",
+        "startup_id",
+        "refresh_token_expires_at"
     ];
-
-    public function startups()
-    {
-        return $this->belongsToMany(Startup::class, 'mentor_startup');
-    }
 }
 // enum('available','busy')

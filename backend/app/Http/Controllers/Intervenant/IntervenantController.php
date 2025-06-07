@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Intervenant;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Storage;
 
 class IntervenantController extends Controller
 {
@@ -29,9 +30,15 @@ class IntervenantController extends Controller
     {
         try {
             $data = $req->validate([
-                'name' => 'required',
-                'bio' => 'required',
-                'contact_info' => 'required',
+                'nom' => 'required|string',
+                'email' => 'required|email',
+                'expertise' => 'required|string',
+                'bio' => 'nullable|string',
+                'photo' => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
+                'telephone' => 'nullable|string',
+                'organisation' => 'nullable|string',
+                'event_id' => 'nullable|integer|exists:events,id',
+                'role' => 'nullable|string',
             ]);
 
             $intervenant = Intervenant::create($data);
@@ -51,6 +58,7 @@ class IntervenantController extends Controller
             throw $th;
         }
     }
+
     function show($id)
     {
         $intervenant = Intervenant::find($id);
@@ -61,74 +69,92 @@ class IntervenantController extends Controller
 
         return response()->json($intervenant, Response::HTTP_OK);
     }
-    function update($id)
+
+    function update(Request $request, $id)
     {
+        $intervenant = Intervenant::find($id);
 
-        try {
-            $intervenant = Intervenant::find($id);
-
-            if (!$intervenant) {
-                return response()->json(['message' => 'Intervenant not found'], Response::HTTP_NOT_FOUND);
-            }
-
-            // $data = request()->validate([
-            //     'idea_stage' => 'sometimes|required',
-            //     'idea' => 'sometimes|required',
-            //     'description' => 'sometimes|required',
-            //     'innovation' => 'sometimes|required',
-            //     'target_customers' => 'sometimes|required',
-            //     'originality' => 'sometimes|required',
-            //     'sector' => 'sometimes|required',
-            //     'other_details' => 'sometimes|required',
-            //     'business_model' => 'sometimes|required',
-            //     'supervisor_name' => 'sometimes|required',
-            //     'submission_date' => 'sometimes|required',
-            //     'modified_date' => 'sometimes|required',
-            //     'is_final' => 'sometimes|required',
-            //     'in_pole' => 'sometimes|required',
-            //     'approved_by_dean' => 'sometimes|required',
-            //     'faculty_code' => 'sometimes|required',
-            //     'advisor_id' => 'sometimes|required',
-            //     'advisor_grade' => 'sometimes|required',
-            //     'advisor_specialization' => 'sometimes|required',
-            //     'advisor_faculty' => 'sometimes|required',
-            //     'advisor_department' => 'sometimes|required',
-            //     'idea_origin' => 'sometimes|required',
-            // ]);
-
-            // $mantor->update($data);
-
-            // return response()->json([
-            //     'success' => true,
-            //     'message' => 'Mentor Updated Successfully',
-            //     'data' => $mentor
-            // ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
+        if (!$intervenant) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error Updating Intervenant',
-                'error' => $th->getMessage()
-            ]);
-        } catch (\Throwable $th) {
-            throw $th;
+                'message' => 'Intervenant not found'
+            ], Response::HTTP_NOT_FOUND);
         }
+
+        $data = $request->validate([
+            'nom' => 'sometimes|required|string',
+            'email' => 'sometimes|required|email',
+            'expertise' => 'sometimes|required|string',
+            'bio' => 'nullable|string',
+            'photo' => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
+            'telephone' => 'nullable|string',
+            'organisation' => 'nullable|string',
+            'event_id' => 'nullable|integer|exists:events,id',
+            'role' => 'nullable|string',
+        ]);
+
+        if ($request->hasFile('photo')) {
+            if ($intervenant->photo && Storage::exists($intervenant->photo)) {
+                Storage::delete($intervenant->photo);
+            }
+
+            $data['photo'] = $request->file('photo')->store('intervenants');
+        }
+
+        $intervenant->update($data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Intervenant updated successfully',
+            'data' => $intervenant
+        ]);
     }
+
     function destroy($id)
     {
         $intervenant = Intervenant::find($id);
 
         if (!$intervenant) {
             return response()->json([
-                "success" => false,
+                'success' => false,
                 'message' => 'Intervenant not found'
             ], Response::HTTP_NOT_FOUND);
+        }
+
+        if ($intervenant->photo && Storage::exists($intervenant->photo)) {
+            Storage::delete($intervenant->photo);
         }
 
         $intervenant->delete();
 
         return response()->json([
-            "success" => true,
+            'success' => true,
             'message' => 'Intervenant deleted successfully'
-        ], Response::HTTP_OK);
+        ]);
+    }
+
+    function eventIntervenants($eventId)
+    {
+        try {
+            $intervenants = Intervenant::where('event_id', $eventId)->get();
+
+            if ($intervenants->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No intervenants found for this event.',
+                    'data' => []
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $intervenants,
+            ], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while fetching intervenants.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 }

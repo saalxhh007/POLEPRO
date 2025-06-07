@@ -19,11 +19,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MoreHorizontal, Search, Calendar, Clock, Video, Users, LinkIcon } from "lucide-react"
 // Importer le nouveau composant ScheduleMeetingForm
 import { ScheduleMeetingForm } from "./schedule-meeting-form"
+import axios from "axios"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
 
 export function MeetingsList() {
   const [searchQuery, setSearchQuery] = useState("")
   const [meetingType, setMeetingType] = useState("all")
   const [tab, setTab] = useState("upcoming")
+
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
   const meetings = [
     {
@@ -93,7 +99,6 @@ export function MeetingsList() {
       status: "completed",
     },
   ]
-
   const filteredMeetings = meetings.filter(
     (meeting) =>
       (meeting.title.toLowerCase().includes(searchQuery.toLowerCase()) ||

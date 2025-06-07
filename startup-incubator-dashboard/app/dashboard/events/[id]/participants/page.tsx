@@ -1,8 +1,8 @@
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
-import { EventParticipantsManager } from "@/components/dashboard/event-participants-manager"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
+import { EventParticipantsManager } from "@/components/dashboard/event-participants-manager"
 
 export default async function EventParticipantsPage({ params }: { params: { id: string } }) {
   return (

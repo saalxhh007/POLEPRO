@@ -16,22 +16,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
-import {
-  Briefcase,
-  Users,
-  Calendar,
-  Edit,
-  FileText,
-  Lightbulb,
-  Target,
-  Award,
-  BarChart,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-} from "lucide-react"
+import { Briefcase, Users, Calendar, Edit, FileText, Lightbulb, Target, Award, BarChart, CheckCircle, AlertCircle, Clock, Plus, StickyNote, CheckSquare, User } from 'lucide-react'
 import toast from "react-hot-toast"
 import api from "@/lib/axios"
+import axios from "axios"
 
 interface Startup {
   id: number
@@ -68,9 +56,173 @@ export default function MyStartupPage() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState<Partial<Startup>>({})
+  const [notes, setNotes] = useState<any[]>([])
+  const [tasks, setTasks] = useState<any[]>([])
+  const [newNote, setNewNote] = useState("")
+  const [newTask, setNewTask] = useState({ title: "", assigned_to: "", status: "En cours", date_limite: "" })
 
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated)
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  const fetchStartupData = async () => {
+    setLoading(true)
+    
+    axios.get(`${apiUrl}/api/startup/get/my-startup`, {
+      withCredentials: true,
+      headers: {
+        "Authorization": `Bearer ${accessToken}`
+      }
+    })
+      .then(response => {
+        const data = response.data;
+        if (response.data.success) {
+          const startup: Startup = {
+            id: data.startup.id,
+            name: data.startup.name,
+            industry: data.startup.industry,
+            stage: data.startup.stage,
+            join_date: data.startup.join_date,
+            status: data.startup.status,
+            progress: data.startup.progress,
+            team_id: data.startup.team_id,
+            idea_stage: data.startup.idea_stage,
+            idea: data.startup.idea,
+            description: data.startup.description,
+            innovation: data.startup.innovation,
+            target_customers: data.startup.target_customers,
+            sector: data.startup.sector,
+            originality: data.startup.originality,
+            other_details: data.startup.other_details,
+            business_model: data.startup.business_model,
+            supervisor_name: data.startup.supervisor_name,
+            submission_date: data.startup.submission_date,
+            modified_date: data.startup.modified_date,
+            is_final: data.startup.is_final,
+            in_pole: data.startup.in_pole,
+            approved_by_dean: data.startup.approved_by_dean,
+            faculty_id: data.startup.faculty_id,
+            advisor_id: data.startup.advisor_id,
+            idea_origin: data.startup.idea_origin,
+            founders: data.startup.founders
+          };
+
+          setStartup(startup);
+        }
+        else {
+          toast.error("No startup associated with this student.")
+        }
+       })
+      .catch(err => {
+        if (!err.response.data.success) {
+          console.log(err);
+          
+          toast.error("No startup associated with this student.")
+        }
+        
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }
+
+  const fetchNotes = () => {
+    axios.get(`${apiUrl}/api/notes/${startup?.id}`, {
+        withCredentials: true,
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      })
+        .then((response) => {
+          if (response.data.success) {
+            setNotes(response.data.data)
+          }
+        }).catch((error) => {
+          console.error("Error fetching notes:", error)
+    })
+  }
+
+  const fetchTasks = async () => {
+    try {
+      const response = await axios.get(`${apiUrl}/api/tasks/Student/${startup?.id}`, {
+        withCredentials: true,
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      })
+      if (response.data.success) {
+        setTasks(response.data.data)
+      }
+    } catch (error) {
+      console.error("Error fetching tasks:", error)
+    }
+  }
+
+  const addNote = async () => {
+    if (!newNote.trim()) return
+    try {
+      const response = await axios.post(`${apiUrl}/api/notes`, {
+        startup_id: startup?.id,
+        content: newNote
+      }, {
+        withCredentials: true,
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      })
+      if (response.data.success) {
+        setNewNote("")
+        fetchNotes()
+        toast.success("Note ajoutée avec succès")
+      }
+    } catch (error) {
+      console.error("Error adding note:", error)
+      toast.error("Erreur lors de l'ajout de la note")
+    }
+  }
+
+  const addTask = async () => {
+    if (!newTask.title.trim()) return
+    try {
+      const response = await axios.post(`${apiUrl}/api/tasks`, {
+        startup_id: startup?.id,
+        ...newTask
+      }, {
+        withCredentials: true,
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      })
+      if (response.data.success) {
+        setNewTask({ title: "", assigned_to: "", status: "En cours", date_limite: "" })
+        fetchTasks()
+        toast.success("Tâche ajoutée avec succès")
+      }
+    } catch (error) {
+      console.error("Error adding task:", error)
+      toast.error("Erreur lors de l'ajout de la tâche")
+    }
+  }
+
+  const updateTaskStatus = async (taskId: number, status: string) => {
+    try {
+      const response = await axios.put(`${apiUrl}/api/tasks/${taskId}`, {
+        status
+      }, {
+        withCredentials: true,
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      })
+      if (response.data.success) {
+        fetchTasks()
+        toast.success("Statut de la tâche mis à jour")
+      }
+    } catch (error) {
+      console.error("Error updating task:", error)
+      toast.error("Erreur lors de la mise à jour de la tâche")
+    }
+  }
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -78,19 +230,12 @@ export default function MyStartupPage() {
     }
   }, [isAuthenticated])
 
-  const fetchStartupData = async () => {
-    setLoading(true)
-    try {
-      const response = await api.get(`${apiUrl}/api/startup/my`)
-      setStartup(response.data)
-      setFormData(response.data)
-    } catch (error) {
-      console.error("Error fetching startup data:", error)
-      toast.error("Impossible de récupérer les données de votre startup")
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    if (isAuthenticated && startup) {
+      fetchNotes()
+      fetchTasks()
     }
-  }
+  }, [isAuthenticated, startup])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -166,12 +311,6 @@ export default function MyStartupPage() {
           <div className="max-w-3xl mx-auto text-center">
             <Briefcase className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h1 className="text-3xl font-bold mb-4">Vous n'avez pas encore de startup</h1>
-            <p className="text-muted-foreground mb-8">
-              Commencez votre parcours entrepreneurial en créant votre startup dans notre incubateur.
-            </p>
-            <Button size="lg" className="bg-primary hover:bg-primary-600">
-              Créer ma startup
-            </Button>
           </div>
         </div>
       </div>
@@ -282,14 +421,14 @@ export default function MyStartupPage() {
                 <h3 className="text-lg font-bold mb-4">Fondateurs</h3>
                 <div className="space-y-4">
                   {startup?.founders && startup.founders.length > 0 ? (
-                    startup.founders.map((founder, index) => (
+                    startup.founders.map((founder: any, index) => (
                       <div key={index} className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
                           <Users className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <p className="font-medium">{founder}</p>
-                          <p className="text-xs text-muted-foreground">Fondateur</p>
+                          <p className="font-medium">{founder.first_name_ar}</p>
+                          <p className="text-xs text-muted-foreground">{founder.role}</p>
                         </div>
                       </div>
                     ))
@@ -346,6 +485,8 @@ export default function MyStartupPage() {
                 <TabsTrigger value="details">Détails</TabsTrigger>
                 <TabsTrigger value="business">Business Model</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
+                <TabsTrigger value="notes">Notes</TabsTrigger>
+                <TabsTrigger value="tasks">Tâches</TabsTrigger>
               </TabsList>
 
               <TabsContent value="details" className="space-y-6">
@@ -793,6 +934,205 @@ export default function MyStartupPage() {
                       <p className="text-muted-foreground">
                         Vous n'avez pas encore téléversé de documents pour ce projet
                       </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="notes" className="space-y-6">
+                <Card>
+                  <CardContent className="p-6">
+                    <h3 className="text-lg font-bold mb-4">Ajouter une note</h3>
+                    <div className="space-y-4">
+                      <Textarea
+                        placeholder="Écrivez votre note ici..."
+                        value={newNote}
+                        onChange={(e) => setNewNote(e.target.value)}
+                        rows={3}
+                      />
+                      <Button onClick={addNote} className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Ajouter la note
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <h3 className="text-lg font-bold mb-4">Notes du projet</h3>
+                    <div className="space-y-4">
+                      {notes.length > 0 ? (
+                        notes.map((note) => (
+                          <div key={note.id} className="p-4 border rounded-lg">
+                            <div className="flex items-start gap-3">
+                              <StickyNote className="h-5 w-5 text-primary mt-1" />
+                              <div className="flex-1">
+                                <p className="text-sm text-muted-foreground mb-2">
+                                  {note.created_by} • {new Date(note.created_at).toLocaleDateString("fr-FR", {
+                                    day: "numeric",
+                                    month: "long",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit"
+                                  })}
+                                </p>
+                                <p>{note.content}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8">
+                          <StickyNote className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h4 className="text-lg font-medium mb-2">Aucune note</h4>
+                          <p className="text-muted-foreground">
+                            Commencez par ajouter votre première note pour ce projet
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="tasks" className="space-y-6">
+                <Card>
+                  <CardContent className="p-6">
+                    <h3 className="text-lg font-bold mb-4">Ajouter une tâche</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="task-title">Titre de la tâche</Label>
+                        <Input
+                          id="task-title"
+                          placeholder="Titre de la tâche"
+                          value={newTask.title}
+                          onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="task-assigned">Assigné à</Label>
+                        <Input
+                          id="task-assigned"
+                          placeholder="Nom de la personne"
+                          value={newTask.assigned_to}
+                          onChange={(e) => setNewTask({ ...newTask, assigned_to: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="task-status">Statut</Label>
+                        <Select
+                          value={newTask.status}
+                          onValueChange={(value) => setNewTask({ ...newTask, status: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="En cours">En cours</SelectItem>
+                            <SelectItem value="Terminé">Terminé</SelectItem>
+                            <SelectItem value="Planifié">Planifié</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="task-deadline">Date limite</Label>
+                        <Input
+                          id="task-deadline"
+                          type="datetime-local"
+                          value={newTask.date_limite}
+                          onChange={(e) => setNewTask({ ...newTask, date_limite: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <Button onClick={addTask} className="flex items-center gap-2 mt-4">
+                      <Plus className="h-4 w-4" />
+                      Ajouter la tâche
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <h3 className="text-lg font-bold mb-4">Tâches du projet</h3>
+                    <div className="space-y-4">
+                      {tasks.length > 0 ? (
+                        tasks.map((task) => (
+                          <div key={task.id} className="p-4 border rounded-lg">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-3 flex-1">
+                                <div className="mt-1">
+                                  {task.status === "Terminé" ? (
+                                    <CheckCircle className="h-5 w-5 text-green-500" />
+                                  ) : task.status === "En cours" ? (
+                                    <Clock className="h-5 w-5 text-blue-500" />
+                                  ) : (
+                                    <AlertCircle className="h-5 w-5 text-yellow-500" />
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <h4 className="font-medium mb-1">{task.title}</h4>
+                                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                    {task.assigned_to && (
+                                      <div className="flex items-center gap-1">
+                                        <User className="h-4 w-4" />
+                                        {task.assigned_to}
+                                      </div>
+                                    )}
+                                    {task.date_limite && (
+                                      <div className="flex items-center gap-1">
+                                        <Calendar className="h-4 w-4" />
+                                        {new Date(task.date_limite).toLocaleDateString("fr-FR", {
+                                          day: "numeric",
+                                          month: "short",
+                                          year: "numeric"
+                                        })}
+                                      </div>
+                                    )}
+                                    <div>
+                                      Créé le {new Date(task.created_at).toLocaleDateString("fr-FR")}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  className={
+                                    task.status === "Terminé"
+                                      ? "bg-green-100 text-green-800"
+                                      : task.status === "En cours"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : "bg-yellow-100 text-yellow-800"
+                                  }
+                                >
+                                  {task.status}
+                                </Badge>
+                                <Select
+                                  value={task.status}
+                                  onValueChange={(value) => updateTaskStatus(task.id, value)}
+                                >
+                                  <SelectTrigger className="w-32">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="En cours">En cours</SelectItem>
+                                    <SelectItem value="Terminé">Terminé</SelectItem>
+                                    <SelectItem value="Planifié">Planifié</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8">
+                          <CheckSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h4 className="text-lg font-medium mb-2">Aucune tâche</h4>
+                          <p className="text-muted-foreground">
+                            Commencez par ajouter votre première tâche pour ce projet
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

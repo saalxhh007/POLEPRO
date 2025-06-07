@@ -32,10 +32,13 @@ import toast from "react-hot-toast"
 import api from "@/lib/axios"
 import { useDispatch } from "react-redux"
 import { logout } from "@/store/slices/authSlice"
+import axios from "axios"
+import { useRouter } from "next/navigation"
 
 interface UserProfile {
   id: number
   matricule: string
+  password: string
   email: string
   phone_number: string
   birth_date: string
@@ -47,13 +50,12 @@ interface UserProfile {
   diploma_ar: string
   faculty_code: string
   department_code: string
-  avatar?: string
-  faculty_name?: string
   department_name?: string
-  created_at?: string
+  startup_id?: number
 }
 
 export default function ProfilePage() {
+  const router = useRouter()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -62,6 +64,7 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
 
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated)
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const dispatch = useDispatch()
@@ -75,9 +78,18 @@ export default function ProfilePage() {
   const fetchProfileData = async () => {
     setLoading(true)
     try {
-      const response = await api.get(`${apiUrl}/api/user/profile`)
-      setProfile(response.data)
-      setFormData(response.data)
+      const response = await axios.get(`${apiUrl}/api/user/get-student-profile`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          token: accessToken,
+        }
+      })
+      if (response.data.success) {
+        setProfile(response.data.student)
+        setFormData(response.data.student)
+      } else {
+        toast.error(response.data.message || "Erreur lors de la récupération du profil")
+      }
     } catch (error) {
       console.error("Error fetching profile data:", error)
       toast.error("Impossible de récupérer les données du profil")
@@ -104,33 +116,51 @@ export default function ProfilePage() {
     }
   }
 
-  const handlePasswordChange = async (e: React.FormEvent) => {
+  const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault()
+    
 
     if (newPassword !== confirmPassword) {
       toast.error("Les mots de passe ne correspondent pas")
       return
     }
-
-    try {
-      await api.put(`${apiUrl}/api/user/password/update`, {
+    axios.put(`${apiUrl}/api/user/password-update`, {
+        matricule: profile?.matricule,
         current_password: currentPassword,
         new_password: newPassword,
-        new_password_confirmation: confirmPassword,
+    }, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
       })
-      toast.success("Mot de passe mis à jour avec succès")
-      setCurrentPassword("")
-      setNewPassword("")
-      setConfirmPassword("")
-    } catch (error) {
-      console.error("Error updating password:", error)
-      toast.error("Erreur lors de la mise à jour du mot de passe")
-    }
+      .then((response) => {
+          console.log(response.data);
+          
+          toast.success("Mot de passe mis à jour avec succès")
+          setCurrentPassword("")
+          setNewPassword("")
+          setConfirmPassword("")
+        })
+        .catch((err) => {
+          console.error("Error updating password:", err)
+          toast.error("Erreur lors de la mise à jour du mot de passe")
+      })
   }
 
   const handleLogout = () => {
-    dispatch(logout())
-    toast.success("Déconnexion réussie")
+    const toastId = toast.loading("Logging Out ...");
+    axios.post(`${apiUrl}/api/user/logout`, {}, { withCredentials: true })
+      .then(() => {
+        dispatch(logout());
+        toast.dismiss(toastId);
+        toast.success("Logout successfully")
+        router.push("/")
+      })
+      .catch(() => {
+        toast.dismiss(toastId)
+        toast.error("Logout failed, please try again.")
+      });
   }
 
   const getInitials = (firstName: string, lastName: string) => {
@@ -180,18 +210,6 @@ export default function ProfilePage() {
             <Card>
               <CardContent className="p-6">
                 <div className="flex flex-col items-center text-center">
-                  <Avatar className="h-24 w-24 mb-4">
-                    {profile?.avatar ? (
-                      <AvatarImage
-                        src={profile.avatar || "/placeholder.svg"}
-                        alt={`${profile.first_name_ar} ${profile.last_name_ar}`}
-                      />
-                    ) : (
-                      <AvatarFallback className="text-xl bg-primary text-primary-foreground">
-                        {profile ? getInitials(profile.first_name_ar, profile.last_name_ar) : "??"}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
                   <h2 className="text-2xl font-bold">{`${profile?.first_name_ar} ${profile?.last_name_ar}`}</h2>
                   <p className="text-muted-foreground mb-4">{profile?.matricule}</p>
                   <div className="flex gap-2 mb-4">
@@ -250,14 +268,14 @@ export default function ProfilePage() {
                 <h3 className="text-lg font-bold mb-4">Liens rapides</h3>
                 <div className="space-y-2">
                   <Link
-                    href="/my-startup"
+                    href="/my-account/my-startup"
                     className="flex items-center gap-3 p-2 rounded-md hover:bg-muted transition-colors"
                   >
                     <Briefcase className="h-5 w-5 text-primary" />
                     <span>Ma startup</span>
                   </Link>
                   <Link
-                    href="/my-events"
+                    href="/my-account/my-events"
                     className="flex items-center gap-3 p-2 rounded-md hover:bg-muted transition-colors"
                   >
                     <Calendar className="h-5 w-5 text-primary" />
@@ -418,14 +436,6 @@ export default function ProfilePage() {
                           <p className="text-sm text-muted-foreground">Matricule</p>
                           <p className="font-medium">{profile?.matricule}</p>
                         </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Date d'inscription</p>
-                          <p className="font-medium">
-                            {profile?.created_at
-                              ? new Date(profile.created_at).toLocaleDateString("fr-FR")
-                              : "Non disponible"}
-                          </p>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -440,7 +450,7 @@ export default function ProfilePage() {
                       <div>
                         <p className="text-sm text-muted-foreground">Faculté</p>
                         <p className="font-medium">
-                          {profile?.faculty_name || profile?.faculty_code || "Non spécifié"}
+                          {profile?.faculty_code || profile?.faculty_code || "Non spécifié"}
                         </p>
                       </div>
                       <div>

@@ -5,8 +5,8 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { ResourcesList } from "@/components/dashboard/resources-list"
 import { useSelector } from "react-redux"
 import { RootState } from "@/store"
-import { useRouter } from "next/router"
 import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 export default function ResourcesPage() {
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);

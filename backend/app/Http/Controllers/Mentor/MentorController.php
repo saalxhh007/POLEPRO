@@ -7,6 +7,7 @@ use App\Models\Meeting;
 use Illuminate\Http\Request;
 use App\Models\Mentor;
 use App\Models\Startup;
+use App\Models\Stats;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
@@ -36,8 +37,8 @@ class MentorController extends Controller
                 'email' => 'required',
                 'expertise' => 'required',
                 'company' => 'required',
-                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-                "bio" => "nullable|string"
+                "bio" => "nullable|string",
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
             ]);
             if ($req->hasFile('image')) {
                 $imagePath = $req->file('image')->store('mentors', 'public');
@@ -45,6 +46,11 @@ class MentorController extends Controller
             }
 
             $mentor = Mentor::create($data);
+            $counter = Stats::firstOrCreate(
+                ['counted_obj' => 'mentors'],
+                ['counter' => 0]
+            );
+            $counter->increment('counter');
 
             return response()->json([
                 'success' => true,
@@ -68,7 +74,7 @@ class MentorController extends Controller
 
         if (!$mentor) {
             return response()->json([
-                "success" => true,
+                "success" => false,
                 'message' => 'Mentor not found'
             ], Response::HTTP_NOT_FOUND);
         }
@@ -128,7 +134,7 @@ class MentorController extends Controller
             throw $th;
         }
     }
-    
+
     function destroy($id)
     {
         $mantor = Mentor::find($id);
@@ -164,6 +170,7 @@ class MentorController extends Controller
                 'message' => 'Error'
             ], Response::HTTP_NOT_FOUND);
         }
+
         if ($mentor->availability === 'busy') {
             return response()->json([
                 "success" => false,
@@ -171,13 +178,9 @@ class MentorController extends Controller
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        DB::table('mentor_startup')->insert([
-            'mentor_id' => $req["mentor_id"],
-            'startup_id' => $req["startup_id"],
-        ]);
-
-        $mentor->startups += 1;
+        $mentor->startup_id = $startup->id;
         $mentor->availability = 'busy';
+        $mentor->startups += 1;
 
         $mentor->save();
 

@@ -42,12 +42,16 @@ class UserController extends Controller
                         'sub' => $user->id,
                         'role' => $role,
                         'email' => $user->email,
+                        "matricule" => $user->matricule,
                         'iat' => time(),
                         'exp' => time() + (60 * 15),
                     ], env('JWT_SECRET'), 'HS256');
 
-                    $refreshToken = Str::random(64);
-                    $user->refresh_token = $refreshToken;
+                    $rawRefreshToken = Str::random(64);
+                    $hashedRefreshToken = Hash::make($rawRefreshToken);
+
+                    $user->refresh_token = $hashedRefreshToken;
+                    $user->refresh_token_expires_at = now()->addDays(7);
                     $user->save();
 
                     return response()
@@ -56,19 +60,19 @@ class UserController extends Controller
                                 "success" => true,
                                 'message' => 'Login successful',
                                 'access_token' => $accessToken,
-                                'role' => $role
+                                'role' => $role,
+                                "expires_in" => 900,
                             ],
-                        )
-                        ->cookie(
-                            "refresh_token",
-                            $refreshToken,
+                        )->cookie(
+                            'refresh_token',
+                            $rawRefreshToken,
                             60 * 24 * 7,
-                            "/",
-                            "",
-                            true,
-                            true,
-                            false,
-                            "Strict"
+                            '/',
+                            null,        // domain
+                            false,       // Secure = false for localhost
+                            false,        // HttpOnly
+                            false,       // Raw
+                            'Lax'        // SameSite
                         );
                 }
             }
@@ -81,45 +85,72 @@ class UserController extends Controller
             return response()->json([
                 'message' => 'An error occurred.',
                 'error' => $e->getMessage(),
-                'success' => false
+                'success' => false,
+                (env('FRONTEND_URL'))
             ], 500);
         }
     }
 
-    public function refreshToken(Request $req)
+    public function refresh(Request $request)
     {
-        $refreshToken = $req->cookie('refresh_token');
-        if (!$refreshToken) {
-            return response()->json(['message' => 'Refresh token not found'], 401);
-        }
+        try {
+            $refreshToken = $request->cookie('refresh_token');
 
-        $roles = [
-            'admin' => Admin::class,
-            'student' => Student::class,
-            'mentor' => Mentor::class,
-        ];
-
-        foreach ($roles as $role => $model) {
-            $user = $model::where('refresh_token', $refreshToken)->first();
-
-            if ($user) {
-                $accessToken = JWT::encode([
-                    'sub' => $user->id,
-                    'role' => $role,
-                    'email' => $user->email,
-                    'iat' => time(),
-                    'exp' => time() + (60 * 15),
-                ], env('JWT_SECRET'), 'HS256');
-
-                return response()->json([
-                    'access_token' => $accessToken,
-                    'role' => $role
-                ]);
+            if (!$refreshToken) {
+                return response()->json(['message' => 'No refresh token provided'], 401);
             }
-        }
 
-        return response()->json(['message' => 'Invalid refresh token'], 401);
+            $roles = [
+                'admin' => Admin::class,
+                'student' => Student::class,
+                'mentor' => Mentor::class,
+            ];
+
+            foreach ($roles as $role => $model) {
+                $users = $model::whereNotNull('refresh_token')
+                    ->where('refresh_token_expires_at', '>=', now())
+                    ->get();
+                $user = $users->first(function ($u) use ($refreshToken) {
+                    return Hash::check($refreshToken, $u->refresh_token);
+                });
+
+                if ($user) {
+                    $accessToken = JWT::encode([
+                        'sub' => $user->id,
+                        'role' => $role,
+                        'email' => $user->email,
+                        "matricule" => $user->matricule,
+                        'iat' => time(),
+                        'exp' => time() + (60 * 15),
+                    ], env('JWT_SECRET'), 'HS256');
+
+                    return response()
+                        ->json([
+                            'access_token' => $accessToken,
+                            'role' => $role,
+                            'expires_in' => 900,
+                            "matricule" => $user->matricule,
+                        ])
+                        ->cookie(
+                            'refresh_token',
+                            $refreshToken,
+                            60 * 24 * 7,
+                            '/',
+                            null,
+                            false,
+                            false,
+                            false,
+                            'Lax'
+                        );
+                }
+            }
+
+            return response()->json(['message' => 'Invalid refresh token'], 401);
+        } catch (\Throwable $th) {
+            return response()->json(['message' => 'Something went wrong', 'error' => $th->getMessage()], 500);
+        }
     }
+
     public function register(Request $req)
     {
         try {
@@ -153,7 +184,6 @@ class UserController extends Controller
                     'type' => $req->type,
                     'faculty_code' => $req->faculty_code,
                     'email' => $req->email,
-                    'refresh_token' => Str::random(64),
                 ]);
             } elseif ($req->type === 'mentor') {
                 $user = Mentor::create([
@@ -181,6 +211,103 @@ class UserController extends Controller
                 'message' => 'An error occurred.',
                 'error' => $e->getMessage(),
                 'success' => false
+            ], 500);
+        }
+    }
+
+    public function logout(Request $request)
+    {
+        try {
+            $refreshToken = $request->cookie('refresh_token');
+
+            if (!$refreshToken) {
+                return response()->json(['message' => 'No refresh token found'], 400)->cookie(
+                    'refresh_token',
+                    '',
+                    -1,
+                    '/',
+                    null,
+                    false,
+                    false,
+                    false,
+                    'Lax'
+                );
+            }
+
+            $roles = [
+                'admin' => Admin::class,
+                'student' => Student::class,
+                'mentor' => Mentor::class,
+            ];
+
+            foreach ($roles as $model) {
+                $user = $model::whereNotNull('refresh_token')->get()->first(function ($u) use ($refreshToken) {
+                    return Hash::check($refreshToken, $u->refresh_token);
+                });
+
+                if ($user) {
+                    $user->refresh_token = null;
+                    $user->save();
+                    break;
+                }
+            }
+
+            return response()->json(['message' => 'Logged out successfully'])->cookie(
+                'refresh_token',
+                '',
+                -1,
+                '/',
+                null,
+                false,
+                false,
+                false,
+                'Lax'
+            );
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => $th->getMessage()
+            ], 400);
+        }
+    }
+
+    public function passwordUpdate(Request $req)
+    {
+        try {
+
+            $req->validate([
+                'matricule' => 'required|string',
+                'current_password' => 'required|string',
+                'new_password' => [
+                    'required',
+                    'string',
+                    'min:8',
+                    'regex:/[A-Z]/',
+                    'regex:/[0-9]/',
+                    'regex:/[@$!%*?&]/'
+                ],
+            ]);
+
+            $student = Student::where('matricule', $req->matricule)->first();
+            if (!$student || !Hash::check($req->current_password, $student->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Matricule ou mot de passe actuel incorrect'
+                ], 401);
+            }
+
+            $student->password = Hash::make($req->new_password);
+            $student->save();
+            return response()->json([
+                'success' => true,
+                'message' => 'Mot de passe mis à jour avec succès'
+            ]);
+        } catch (\Throwable $th) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du mot de passe',
+                'error' => $th->getMessage()
             ], 500);
         }
     }

@@ -18,6 +18,7 @@ import {
   BookOpen,
   Lightbulb,
   MessageCircle,
+  PersonStanding,
 } from "lucide-react"
 
 export function DashboardNav() {
@@ -45,6 +46,11 @@ export function DashboardNav() {
       title: "Mentors",
     },
     {
+      href: "/dashboard/students",
+      icon: PersonStanding,
+      title: "Students",
+    },
+    {
       href: "/dashboard/events",
       icon: Calendar,
       title: "Events",
@@ -69,36 +75,36 @@ export function DashboardNav() {
       icon: Library,
       title: "Resources",
     },
-    {
-      href: "/dashboard/reports",
-      icon: BarChart3,
-      title: "Reports",
-    },
-    {
-      href: "/dashboard/resource-library",
-      icon: FileText,
-      title: "Resource Library",
-    },
-    {
-      href: "/dashboard/trainings",
-      icon: BookOpen,
-      title: "Trainings",
-    },
-    {
-      href: "/dashboard/applications",
-      icon: ClipboardList,
-      title: "Applications",
-    },
-    {
-      href: "/dashboard/help",
-      icon: HelpCircle,
-      title: "Help Center",
-    },
-    {
-      href: "/dashboard/settings",
-      icon: Settings,
-      title: "Settings",
-    },
+    // {
+    //   href: "/dashboard/reports",
+    //   icon: BarChart3,
+    //   title: "Reports",
+    // },
+    // {
+    //   href: "/dashboard/resource-library",
+    //   icon: FileText,
+    //   title: "Resource Library",
+    // },
+    // {
+    //   href: "/dashboard/trainings",
+    //   icon: BookOpen,
+    //   title: "Trainings",
+    // },
+    // {
+    //   href: "/dashboard/applications",
+    //   icon: ClipboardList,
+    //   title: "Applications",
+    // },
+    // {
+    //   href: "/dashboard/help",
+    //   icon: HelpCircle,
+    //   title: "Help Center",
+    // },
+    // {
+    //   href: "/dashboard/settings",
+    //   icon: Settings,
+    //   title: "Settings",
+    // },
   ]
 
   return (

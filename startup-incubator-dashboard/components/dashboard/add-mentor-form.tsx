@@ -16,8 +16,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus } from "lucide-react"
 import axios from "axios"
 import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
 
 export function AddMentorForm({ onMentorAdded }: { onMentorAdded: () => void }) {
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
   const [open, setOpen] = useState(false)
   const [mentorData, setMentorData] = useState({
     name: "",
@@ -44,19 +47,29 @@ export function AddMentorForm({ onMentorAdded }: { onMentorAdded: () => void }) 
       formData.append("expertise", mentorData.expertise);
       formData.append("company", mentorData.company);
       formData.append("email", mentorData.email);
-      formData.append("bio", mentorData.bio);
-      if (mentorData.image) formData.append("image", mentorData.image);
-
-      axios.post(`${apiUrl}/api/mentor/`, formData)
-        .then(response => {
+    formData.append("bio", mentorData.bio);
+    
+    if (mentorData.image) formData.append("image", mentorData.image);
+    const toastId = toast.loading("Adding Mentor ...");
+    axios.post(`${apiUrl}/api/mentor/`, formData, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+      })
+      .then(response => {
           if (response.data.success) {
             toast.success("Mentor created successfully");
+            toast.dismiss(toastId);
             setOpen(false);
             onMentorAdded();
+          }
+          else {
           }
         })
         .catch(err => {
           toast.error("Error creating mentor")
+          toast.dismiss(toastId);
           console.log(err);
         })
   }

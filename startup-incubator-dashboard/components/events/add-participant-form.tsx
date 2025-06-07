@@ -25,6 +25,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
@@ -34,7 +36,7 @@ const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
   phone: z.string().min(8, { message: "Phone number must be at least 8 characters" }),
   organization: z.string().optional(),
-  expectations: z.string().min(10, { message: "Please provide your expectations (min 10 characters)" }),
+  expectations: z.string().optional(),
   event_id: z.number().optional(),
 })
 
@@ -56,6 +58,8 @@ export function AddParticipantForm({ onSuccess }: AddParticipantFormProps) {
   const [eventOpen, setEventOpen] = useState(false)
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -83,35 +87,30 @@ export function AddParticipantForm({ onSuccess }: AddParticipantFormProps) {
 
   const onSubmit = async (data: FormValues) => {
     setIsLoading(true)
-    try {
-      await axios.post(`${apiUrl}/api/participent/add`, {
-        ...data,
-        status: "confirmed",
-      })
-        .then((response) => {
-          if (response.data.success) {
-            toast.success("participant Added Successfully")
-            form.reset()
-            if (onSuccess) onSuccess()
-            setOpen(false)
-          }
-          else {
-            console.log(response.data);
+    axios.post(`${apiUrl}/api/participent/add`, data, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    })
+      .then((response) => {
+        if (response.data.success) {
+          toast.success("participant Added Successfully")
+          form.reset()
+          if (onSuccess) onSuccess()
+          setOpen(false)
+        }
+        else {
             toast.error("Failed To Add Participent")
           }
-          
-
         })
         .catch(err => {
           toast.success("Failed To Add Participent")
           console.error("Failed to add participant:", err)
         })
-
-    } catch (error) {
-      console.error("Failed to add participant:", error)
-    } finally {
-      setIsLoading(false)
-    }
+      .finally(() => {
+        setIsLoading(false)
+      })
   }
 
   return (

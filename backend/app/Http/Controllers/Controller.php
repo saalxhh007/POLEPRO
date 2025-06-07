@@ -10,7 +10,7 @@ use function Pest\Laravel\json;
 class Controller
 {
     // Function That Get Statistiques
-    function index()
+    function indexStats()
     {
         try {
             $stats = Stats::all();

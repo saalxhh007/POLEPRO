@@ -3,27 +3,38 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 class AcceptanceNotification extends Mailable
 {
     use Queueable, SerializesModels;
     public $name;
+    public $checkinUrl;
+    public $qrPath;
+    public $eventName;
 
-    public function __construct($name)
+    public function __construct($name, $checkinUrl, $qrPath, $eventName)
     {
         $this->name = $name;
+        $this->checkinUrl = $checkinUrl;
+        $this->qrPath = $qrPath;
+        $this->eventName = $eventName;
     }
 
     public function build()
     {
-        return $this->subject('Accepted to Event')
+        return $this->subject('Confirmation de participation')
             ->view('emails.accepted_event')
-            ->with(['name' => $this->name]);
+            ->with([
+                "eventName" => $this->eventName,
+                'name' => $this->name,
+                'checkinUrl' => $this->checkinUrl,
+            ])
+            ->attach($this->qrPath, [
+                'as' => 'qr_code_checkin.png',
+                'mime' => 'image/png',
+            ]);
     }
 
     /**

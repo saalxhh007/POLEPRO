@@ -133,4 +133,27 @@ class TeamController extends Controller
             'message' => 'Team deleted successfully'
         ], Response::HTTP_OK);
     }
+
+    function StartupTeamMembers($startupId)
+    {
+        try {
+            $members = DB::table('teams')
+                ->join('team_members', 'teams.id', '=', 'team_members.team_id')
+                ->join('student', 'team_members.student_id', '=', 'student.id')
+                ->where('teams.startup_id', $startupId)
+                ->select('student.first_name_ar', 'student.last_name_ar', 'team_members.role', "student.id")
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'members' => $members
+            ], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve team members',
+                'error' => $e->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
 }

@@ -7,6 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import axios from "axios"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
+import toast from "react-hot-toast"
 
 export function EditMentorDialog({ isOpen, onClose, mentor, onUpdate }: { isOpen: any; onClose: any; mentor: any, onUpdate: any }) {
   const [formData, setFormData] = useState({
@@ -19,6 +23,7 @@ export function EditMentorDialog({ isOpen, onClose, mentor, onUpdate }: { isOpen
     availability: mentor?.availability || "available",
     image: mentor?.image || "",
   })
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const [isSubmitting, setIsSubmitting] = useState(false)
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
@@ -39,29 +44,24 @@ export function EditMentorDialog({ isOpen, onClose, mentor, onUpdate }: { isOpen
     }
 
     setIsSubmitting(true)
-    try {
-      const res = await fetch(`${apiUrl}/api/mentor/${mentor.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      })
-
-      const data = await res.json()
-      if (data.success) {
-        alert("Mentor updated successfully")
-        onUpdate(data.data)
-        onClose()
-      } else {
-        alert("Failed to update mentor")
+    axios.put(`${apiUrl}/api/mentor/${mentor.id}`, formData, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${accessToken}`
       }
-    } catch (error) {
-      console.error("Error updating mentor:", error)
-      alert("Something went wrong")
-    } finally {
-      setIsSubmitting(false)
-    }
+    })
+      .then((response) => {
+        toast.success("Mentor updated successfully")
+        onUpdate(response.data.data)
+        onClose()
+      })
+      .catch((err) => {
+        console.error("Error updating mentor:", err)
+        toast.error("Something went wrong")
+      })
+      .finally(() => {
+        setIsSubmitting(false)
+      })
   }
 
   return (

@@ -1,3 +1,4 @@
+"use client"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { EventHomeStats } from "@/components/dashboard/event-home-stats"
 import { Button } from "@/components/ui/button"

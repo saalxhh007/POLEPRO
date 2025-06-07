@@ -4,20 +4,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useEffect, useState } from "react"
+import axios from "axios"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
+import toast from "react-hot-toast"
 
 export function MentorAvailability() {
   const [mentors, setMentors] = useState<any[]>([])
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
 
   const fetchMentorAvailability = async () => {
-    const res = await fetch(`${apiUrl}/api/mentor/available`)
-    const data = await res.json()
-    
-    if (data.status) {
-      setMentors(data.data)
-      
+    try {
+    const response = await axios.get(`${apiUrl}/api/mentor/check/available`, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`
+      }
+    });
+
+    if (response.data.success) {
+      const availableMentors = response.data.data;
+
+      if (availableMentors.length === 0) {
+        toast.error("No mentors are available right now");
+      } else {
+        setMentors(availableMentors);
+      }
+    } else {
+      toast.error("Something went wrong");
     }
+  } catch (error) {
+    console.error(error);
+    toast.error("Failed to fetch mentors");
   }
+};
+
 
   useEffect(() => {
     fetchMentorAvailability()

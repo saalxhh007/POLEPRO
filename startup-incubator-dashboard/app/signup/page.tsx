@@ -138,9 +138,10 @@ export default function SignupPage() {
 
   const decodeToken = (token: any) => {
     axios
-      .post(`${apiUrl}/api/decrypt-token`, { token })
+      .post(`${apiUrl}/api/user/decrypt-token-form`, { token })
       .then((response) => {
         if (response.data.success) {
+          
           const student = response.data.student
 
           setFormData((prev) => ({
@@ -155,13 +156,11 @@ export default function SignupPage() {
             id: student.id
           }))
         } else {
-          console.error("Decryption failed:", response.data.message)
           setGeneralError("Erreur lors du décodage du token. Veuillez réessayer.")
           return null
         }
       })
       .catch((err) => {
-        console.error("Error decoding token:", err)
         return null
       })
   }
@@ -191,6 +190,11 @@ export default function SignupPage() {
     // Birth date validation
     if (!formData.birth_date) {
       newErrors.birth_date = "La date de naissance est requise"
+    } else {
+      const birthYear = formData.birth_date.getFullYear();
+      if (birthYear >= 2005) {
+        newErrors.birth_date = "La date de naissance doit être avant 2005";
+      }
     }
 
     // Gender validation
@@ -281,19 +285,14 @@ export default function SignupPage() {
     }
 
     const { id, ...dataToSend } = formData;
-    console.log(dataToSend);
     
     setIsLoading(true)
-    axios.post(`${apiUrl}/api/student/register/${id}`, dataToSend )
+    axios.post(`${apiUrl}/api/user/student/register/${id}`, dataToSend )
       .then(response => {
-        console.log(response.data);
-        
         toast.success("Account Created Successfully, Try Login")
           router.push("/login")
        })
       .catch(err => {
-        console.log(err);
-        
         toast.error("Failed To Create An Account")
       })
     .finally(() => {
@@ -517,7 +516,6 @@ export default function SignupPage() {
                         value={formData.number_of_members}
                         onChange={handleInputChange}
                         type="number"
-                        disabled
                       />
                       {errors.number_of_members && <p className="text-sm text-red-500">{errors.number_of_members}</p>}
                     </div>

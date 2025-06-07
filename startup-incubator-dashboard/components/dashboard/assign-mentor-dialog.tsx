@@ -1,159 +1,222 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Briefcase, Calendar, Users } from "lucide-react"
 import axios from "axios"
 import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/store"
 
-interface Mentor {
-  id: number
-  name: string
-  expertise: string
-  availability: string
+interface AssignProjectDialogProps {
+  isOpen: boolean
+  onClose: () => void
+  student: any
+  onAssigned: () => void
 }
 
-interface AssignMentorDialogProps {
-  startup: any
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSuccess: () => void
-}
-
-export function AssignMentorDialog({ startup, open, onOpenChange, onSuccess }: AssignMentorDialogProps) {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [mentors, setMentors] = useState<Mentor[]>([])
-  const [selectedMentor, setSelectedMentor] = useState<string>("")
-  const [notes, setNotes] = useState<string>("")
+export function AssignProjectDialog({ isOpen, onClose, student, onAssigned }: AssignProjectDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [projects, setProjects] = useState<any[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState("")
+  const [assignmentNotes, setAssignmentNotes] = useState("")
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
+
+  // Fetch available projects
+  const fetchProjects = async () => {
+    try {
+      const response = await axios.get(`${apiUrl}/api/projects/available`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (response.data.success) {
+        setProjects(response.data.data)
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error)
+      toast.error("Failed to fetch projects")
+    }
+  }
 
   useEffect(() => {
-    if (open) {
-      fetchMentors()
-      if (startup.mentor_id) {
-        setSelectedMentor(startup.mentor_id.toString())
-      } else {
-        setSelectedMentor("")
-      }
-      setNotes("")
+    if (isOpen) {
+      fetchProjects()
+      setSelectedProjectId("")
+      setAssignmentNotes("")
     }
-  }, [open, startup])
+  }, [isOpen])
 
-  const fetchMentors = async () => {
+  const handleAssign = async () => {
+    if (!selectedProjectId) {
+      toast.error("Please select a project")
+      return
+    }
+
     setIsLoading(true)
-    axios.get(`${apiUrl}/api/mentor`)
-      .then((response) => {
-        if (response.data.success) {
-          setMentors(response.data.data)
-        }
-        else {
-          console.error("Failed to fetch mentors")
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to fetch mentors:", err)
-      })
-      .finally(()=>{
-        setIsLoading(false)
-      })
-  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedMentor ) {
-      toast.error("Please select a mentor")
-      return;
+    try {
+      const toastId = toast.loading("Assigning project...")
+
+      const response = await axios.post(
+        `${apiUrl}/api/student/${student.id}/assign-project`,
+        {
+          project_id: selectedProjectId,
+          notes: assignmentNotes,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        },
+      )
+
+      if (response.data.success) {
+        toast.success("Project assigned successfully!", { id: toastId })
+        onClose()
+        onAssigned()
+      } else {
+        toast.error("Failed to assign project", { id: toastId })
+      }
+    } catch (error) {
+      toast.error("Failed to assign project")
+      console.error("Error assigning project:", error)
+    } finally {
+      setIsLoading(false)
     }
-    setIsSubmitting(true)
-
-    axios.post(`${apiUrl}/api/mentor/assign/`, {
-      mentor_id: Number.parseInt(selectedMentor),
-      startup_id: Number.parseInt(startup.id)
-      })
-        .then((response) => {
-          if (!response.data.success) {
-            toast.error(`${response.data.message}`)
-          }
-          else {
-            toast.success("Mentor assigned successfully")
-          }
-         })
-        .catch((err) => {
-          toast.error("Failed to assign mentor")
-          console.error("Error assigning mentor:", err)
-        })
-      .finally(()=>{
-        setIsSubmitting(false)
-      })
-
   }
+
+  const selectedProject = projects.find((project) => project.id.toString() === selectedProjectId)
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Assign Mentor to {startup?.name}</DialogTitle>
+          <DialogTitle>Assign Project</DialogTitle>
+          <DialogDescription>
+            Assign a project to {student?.first_name_ar} {student?.last_name_ar}
+          </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="grid gap-6 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="mentor">Select Mentor</Label>
-            {isLoading ? (
-              <div className="flex items-center justify-center p-4">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-6 py-4">
+          {/* Student Info */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Student Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Name:</span>
+                <span className="text-sm font-medium">
+                  {student?.first_name_ar} {student?.last_name_ar}
+                </span>
               </div>
-            ) : (
-              <Select value={selectedMentor} onValueChange={setSelectedMentor}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a mentor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {mentors.map((mentor) => (
-                    <SelectItem key={mentor.id} value={mentor.id.toString()}>
-                      {mentor.name} - {mentor.expertise}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Matricule:</span>
+                <span className="text-sm font-medium">{student?.matricule}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Domain:</span>
+                <span className="text-sm font-medium">{student?.Domain_ar}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Project Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="project">Select Project</Label>
+            <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="h-4 w-4" />
+                      <div>
+                        <div className="font-medium">{project.title}</div>
+                        <div className="text-sm text-muted-foreground">{project.category}</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {selectedMentor && (
-            <div className="grid gap-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any specific notes about this mentorship assignment"
-                className="min-h-[100px]"
-              />
-            </div>
+          {/* Selected Project Details */}
+          {selectedProject && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  Project Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <h4 className="font-medium">{selectedProject.title}</h4>
+                  <p className="text-sm text-muted-foreground mt-1">{selectedProject.description}</p>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>Duration: {selectedProject.duration || "Not specified"}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span>Team Size: {selectedProject.team_size || "Flexible"}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedProject.skills?.map((skill: string, index: number) => (
+                    <Badge key={index} variant="secondary" className="text-xs">
+                      {skill}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting || isLoading || !selectedMentor}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Assigning...
-                </>
-              ) : (
-                "Assign Mentor"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+          {/* Assignment Notes */}
+          <div className="space-y-2">
+            <Label htmlFor="notes">Assignment Notes (Optional)</Label>
+            <Textarea
+              id="notes"
+              value={assignmentNotes}
+              onChange={(e) => setAssignmentNotes(e.target.value)}
+              placeholder="Add any specific notes or instructions for this assignment..."
+              rows={3}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleAssign} disabled={isLoading || !selectedProjectId}>
+            {isLoading ? "Assigning..." : "Assign Project"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

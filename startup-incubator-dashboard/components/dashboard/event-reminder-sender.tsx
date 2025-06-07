@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
 import axios from "axios"
 import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
 
 interface Participant {
   id: number
@@ -33,7 +35,6 @@ export function EventReminderSender({ eventId }: EventReminderSenderProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("email")
   const [selectedParticipantsidS, setSelectedParticipantsidS] = useState<number[]>([])
-  const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([])
   const [confirmedParticipants, setConfirmedParticipants] = useState<Participant[]>([])
   const [selectAll, setSelectAll] = useState(false)
   const [emailSubject, setEmailSubject] = useState("Rappel: Événement à venir")
@@ -44,54 +45,61 @@ export function EventReminderSender({ eventId }: EventReminderSenderProps) {
     "Rappel: L'événement aura lieu le [DATE] à [HEURE] à [LIEU]. Nous avons hâte de vous y voir!",
   )
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
-  // cibon
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+
   const handleSelectAll = (checked: boolean) => {
-    setSelectAll(checked)
+    setSelectAll(checked);
     if (checked) {
-      setSelectedParticipants(selectedParticipants)
+      setSelectedParticipantsidS(confirmedParticipants.map(participant => participant.id));
     } else {
-      setSelectedParticipants([])
+      setSelectedParticipantsidS([]);
     }
-  }
-  // 
+  };
+
   const handleSelectParticipant = (participantId: number, checked: boolean) => {
-    if (checked) {
-      setSelectedParticipantsidS((prev: any) => [...prev, participantId])
-    } else {
-      setSelectedParticipantsidS((prev) => prev.filter((id: any) => id !== participantId))
-    }
-  }
+    setSelectedParticipantsidS((prev) => {
+      if (checked) {
+        return [...prev, participantId];
+      } else {
+        return prev.filter((id) => id !== participantId);
+      }
+    });
+  };
 
   const handleSendReminders = () => {
-    try {
-      console.log(selectedParticipants);
+    axios.post(`${apiUrl}/api/participants/send-reminders`, {
+      participantIds: selectedParticipantsidS,
+      subject: emailSubject,
+      message: activeTab === 'email' ? emailContent : smsContent,
+      type: activeTab,
+    }, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${accessToken}` 
+      }
+     })
+      .then(response => {
+      console.log(response.data);
       
-      axios.post(`${apiUrl}/api/participants/send-eminders`, {
-        participantIds: selectedParticipantsidS,
-        subject: emailSubject,
-        message: activeTab === 'email' ? emailContent : smsContent,
-        type: activeTab,
-      })
-        .then(response => {
-          if (response.data.success) {
-            toast.success("Reminders Sent To Participants Mails")
-          }
-          else {
-            toast.error("Error In Sending Email's To Participants")
-          }
-        })
-        .catch(err => {
-          console.log(err);
-          toast.error("Error In Sending Email's To Participants")
-        })
-    } catch (error) {
-      
-    }
+      if (response.data.success) {
+        toast.success("Reminders Sent To Participants Mails");
+      } else {
+        toast.error("Error In Sending Email's To Participants");
+      }
+    })
+    .catch(err => {
+      console.log(err);
+      toast.error("Error In Sending Email's To Participants");
+    });
   }
   
-  
-const fetchParticipants = () => {
-  axios.get(`${apiUrl}/api/participent/all`)
+  const fetchParticipants = () => {
+    axios.get(`${apiUrl}/api/participent/all`, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    })
     .then(response => {
       const confirmed = response.data.participants.filter(
         (participant: Participant) => participant.status === "confirmed"
@@ -103,11 +111,12 @@ const fetchParticipants = () => {
     .catch(err => {
       console.error("Failed to fetch participants:", err);
     });
-};
+  };
 
   useEffect(() => {
-    fetchParticipants()
-  }, [])
+    fetchParticipants();
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -167,6 +176,7 @@ const fetchParticipants = () => {
                   <div className="flex items-center gap-3">
                     <Checkbox
                       id={`participant-${participant.id}`}
+                      checked={selectedParticipantsidS.includes(participant.id)} // Reflect the selection state
                       onCheckedChange={(checked) => handleSelectParticipant(participant.id, checked as boolean)}
                     />
                     <div>
@@ -184,8 +194,8 @@ const fetchParticipants = () => {
             <Button variant="outline" onClick={() => router.push("/dashboard/events")}>
               Annuler
             </Button>
-            <Button onClick={handleSendReminders} disabled={selectedParticipants.length === 0}>
-              Envoyer {selectedParticipants.length > 0}
+            <Button onClick={handleSendReminders} disabled={selectedParticipantsidS.length === 0}>
+              Envoyer {selectedParticipantsidS.length > 0}
             </Button>
           </div>
         </div>
@@ -193,4 +203,3 @@ const fetchParticipants = () => {
     </Card>
   )
 }
-

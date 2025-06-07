@@ -36,22 +36,10 @@ import {
 import { User, Settings, LogOut } from "lucide-react"
 import { useDispatch, useSelector } from "react-redux"
 import api from "@/lib/axios"
-import { logout, setAuth } from "@/store/slices/authSlice"
-import { jwtDecode } from "jwt-decode";
+import { logout } from "@/store/slices/authSlice"
 import { RootState } from "@/store"
 import toast from "react-hot-toast"
-
-interface Participant {
-  event_id: number
-  status: string
-  name: string
-  email: string
-  phone: string
-  organization: string
-  role: string
-  expectations: string
-}
-
+  
 type ParticipantCounts = {
   [eventId: number]: number
 }
@@ -59,13 +47,11 @@ type ParticipantCounts = {
 export default function Home() {
   const [projects, setProjects] = useState<any[]>([])
   const [events, setEvents] = useState<any[]>([])
-  const [participants, setParticipants] = useState<any[]>([])
+  const [stats, setStats] = useState<any>([])
   const [participantCounts, setParticipantCounts] = useState<ParticipantCounts>({})
-  const state = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
   const role = useSelector((state: RootState) => state.auth.role);
-  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
@@ -87,7 +73,6 @@ export default function Home() {
       "Novembre",
       "Décembre",
     ]
-
     const monthName = monthNames[monthIndex]
 
     return {
@@ -105,9 +90,9 @@ export default function Home() {
         setProjects(response.data.slice(0, 3))
       })
       .catch((err) => {
-        console.log(err)
       })
   }
+
   const fetchEvents = () => {
     api
       .get(`${apiUrl}/api/event/upcoming`, {
@@ -117,83 +102,28 @@ export default function Home() {
         setEvents(response.data.data.slice(0, 3))
       })
       .catch((err) => {
-        console.log(err)
       })
   }
-  const fetchParticipants = () => {
+
+  const fetchStats = () => {
     axios
-      .get<{ participants: Participant[] }>(`${apiUrl}/api/participent/all`, 
-        { headers: {
-          Authorization: `Bearer ${accessToken}`,
-        }},)
-      .then((response) => {
-        const confirmedParticipants = response.data.participants.filter(
-          (participant) => participant.status === "confirmed",
-        )
-        setParticipants(confirmedParticipants)
-
-        const counts: ParticipantCounts = {}
-        confirmedParticipants.forEach((participant) => {
-          const event_id = participant.event_id
-          counts[event_id] = (counts[event_id] || 0) + 1
-        })
-        setParticipantCounts(counts)
+      .get(`${apiUrl}/api/stats`)
+      .then(response => {
+        setStats(response.data.data)
       })
-      .catch((err) => {
-        console.error("Error fetching participants:", err)
-      })
-  }
-
-  const refreshAccessToken = async () => {
-    api.post(`${apiUrl}/api/user/refresh-token`, {}, {
-      withCredentials: true,
-    })
-    .then(response => {
-      if (response.data.access_token) {
-        dispatch(setAuth({ accessToken: response.data.access_token, role: response.data.role }));
-      } else {
-        console.log("Failed to refresh token");
+      .catch( (err) => {
       }
-    })
-    .catch(err => {
-      console.error("Error refreshing token:", err)
-    })
-  };
-  const setupTokenRefresh = () => {
-    const tokenExpiryTime  = getTokenExpiryTime() || 0;
-    const refreshThreshold = 2 * 60 * 1000;
-
-    setTimeout(() => {
-      refreshAccessToken();
-    }, tokenExpiryTime - Date.now() - refreshThreshold);
-  };
-const getTokenExpiryTime = (): number | null => {
-  const token = getAccessToken();
-
-  if (!token) {
-    return null;
+      )
+    
   }
-
-  const decoded: { exp: number } = jwtDecode(token);
-  return decoded.exp * 1000;
-  };
-  const getAccessToken = () => {
-    return state.accessToken;
-  };
-
+  
   useEffect(() => {
     fetchProjects()
     fetchEvents()
-    fetchParticipants()
+    fetchStats()
+    
   }, [])
-  
-  useEffect(() => {
-    if (isAuthenticated) {
-      setupTokenRefresh();
-    } else {
-      console.log("User is not authenticated");
-    }
-  }, [isAuthenticated]);
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header */}
@@ -201,13 +131,15 @@ const getTokenExpiryTime = (): number | null => {
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-6 md:gap-10">
             <div className="flex items-center space-x-2">
-              <Image
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/thumbnail-aFlPs5tpcKuHWq8kmfEaQrc1JWZmnB.png"
-                alt="Logo Université de Guelma"
-                width={40}
-                height={40}
-                className="h-10 w-auto"
-              />
+              <Link href="/">
+                <Image
+                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/thumbnail-aFlPs5tpcKuHWq8kmfEaQrc1JWZmnB.png"
+                  alt="Logo Université de Guelma"
+                  width={40}
+                  height={40} 
+                  className="h-10 w-auto"
+                />
+              </Link>
               <div className="h-6 w-px bg-muted" />
               <Image
                 src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo%20incubqteur-NWDtZ5DEtRRBOfP3FkY6RPl6pbjfTe.png"
@@ -300,9 +232,18 @@ const getTokenExpiryTime = (): number | null => {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() => {
-                        dispatch(logout())
-                        toast.success("Logout Succeffuly")
-                      }}
+                          const toastId = toast.loading("Logging Out ...");
+                          axios.post(`${apiUrl}/api/user/logout`, {}, { withCredentials: true })
+                            .then(() => {
+                              dispatch(logout());
+                              toast.dismiss(toastId);
+                              toast.success("Logout successfully")
+                            })
+                            .catch(() => {
+                              toast.dismiss(toastId);
+                              toast.error("Logout failed, please try again.")
+                            });
+                        }}
                     >
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Se déconnecter</span>
@@ -343,10 +284,19 @@ const getTokenExpiryTime = (): number | null => {
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={() => {
-                            dispatch(logout());
-                            toast.success("Logout Successfully");
-                          }}
+                        onClick={() => {
+                          const toastId = toast.loading("Logging Out ...");
+                          axios.post(`${apiUrl}/api/user/logout`, {}, { withCredentials: true })
+                            .then((response) => {
+                              dispatch(logout());
+                              toast.dismiss(toastId);
+                              toast.success("Logout successfully")
+                            })
+                            .catch((error) => {
+                              toast.dismiss(toastId);
+                              toast.error("Logout failed, please try again.")
+                            });
+                        }}
                         >
                           <LogOut className="mr-2 h-4 w-4" />
                           <span>Se déconnecter</span>
@@ -873,7 +823,13 @@ const getTokenExpiryTime = (): number | null => {
             <h3 className="text-2xl font-bold mb-6 text-primary">Nos Chiffres Clés</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <Card className="text-center p-6">
-                <h4 className="text-4xl font-bold text-primary mb-2">42</h4>
+                <h4 className="text-4xl font-bold text-primary mb-2">
+                  {
+                    stats.length > 1 && stats[1]?.counted_obj === "startups"
+                      ? stats[1]?.counter
+                      : 0
+                  }
+                </h4>
                 <p className="text-sm text-gray-500">Projets Incubés</p>
               </Card>
               <Card className="text-center p-6">
@@ -885,7 +841,13 @@ const getTokenExpiryTime = (): number | null => {
                 <p className="text-sm text-gray-500">Partenaires</p>
               </Card>
               <Card className="text-center p-6">
-                <h4 className="text-4xl font-bold text-primary mb-2">30+</h4>
+                <h4 className="text-4xl font-bold text-primary mb-2">
+                  {
+                    stats.length > 1 && stats[1]?.counted_obj === "events"
+                      ? stats[1]?.counter
+                      : 0
+                  }
+                </h4>
                 <p className="text-sm text-gray-500">Événements Organisés</p>
               </Card>
             </div>

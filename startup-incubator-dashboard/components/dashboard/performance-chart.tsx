@@ -2,9 +2,36 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { RootState } from "@/store"
+import axios from "axios"
 import { BarChart, LineChart } from "lucide-react"
+import { useEffect, useState } from "react"
+import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
 
 export function PerformanceChart() {
+  const [startups, setStartups] = useState([])
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
+  
+  const fetchStartups = async () => {
+    axios
+      .get(`${apiUrl}/api/startup`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+      .then((response) => {
+        setStartups(response.data)
+      })
+      .catch((err) => {
+        toast.error("Failed to fetch startups")
+      })
+  }
+  useEffect(() => {
+    fetchStartups()
+  }
+  , [])
   return (
     <Card className="col-span-4">
       <CardHeader className="flex flex-row items-center justify-between">

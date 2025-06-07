@@ -12,7 +12,8 @@ class Admin extends Model
         "type",
         "faculty_code",
         "email",
-        "refresh_token"
+        "refresh_token",
+        "refresh_token_expires_at"
     ];
 
     protected $hidden = [

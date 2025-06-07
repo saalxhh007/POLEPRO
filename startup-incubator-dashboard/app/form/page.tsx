@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import axios from "axios"
 import toast from "react-hot-toast"
+import { useRouter } from "next/navigation"
 
 const formSchema = z.object({
   matricule: z
@@ -25,6 +26,7 @@ const formSchema = z.object({
 })
 
 export default function StudentForm() {
+  const router = useRouter()
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -44,19 +46,18 @@ export default function StudentForm() {
       ...values,
       number_of_members: Number(values.number_of_members),
     };
-    
-    axios.post(`${apiUrl}/api/approval/submit-form`, parsedValues)
+    axios.post(`${apiUrl}/api/user/approval/submit-form`, parsedValues)
       .then(response => {
         if (response.data.success) {
           toast.success("Form Sent Succesffully You Will Get A Response")
           setTimeout(() => {
-            window.location.href = '/';
+            router.push("/")
           }, 3000);
         }
       })
       .catch((err) => {
         if (!err.response.data.success) {
-          toast.error("Matricule Already Exists")
+          toast.error("Matricule Or email Already Exists")
         }
         else{
           toast.error("Error Occurred When Sending The Form")

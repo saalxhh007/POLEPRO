@@ -18,20 +18,21 @@ import { MoreHorizontal, Search, Filter } from "lucide-react"
 import { StartupFormDialog } from "./add-startup-form"
 import { StartupDetailsDialog } from "./startup-details-dialog"
 import { EditStartupDialog } from "./edit-startup"
-import { AssignMentorDialog } from "./assign-mentor-dialog"
 import { ScheduleMeetingDialog } from "./schedule-meeting-dialog"
 import axios from "axios"
 import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
 
 export function StartupsList() {
   const [searchQuery, setSearchQuery] = useState<string>("")
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const [startups, setStartups] = useState<any[]>([])
   const [selectedStartup, setSelectedStartup] = useState<any>(null)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [assignMentorDialogOpen, setAssignMentorDialogOpen] = useState(false)
   const [scheduleMeetingDialogOpen, setScheduleMeetingDialogOpen] = useState(false)
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
 
   const fetchStartups = async () => {
 
@@ -62,6 +63,7 @@ export function StartupsList() {
       axios.delete(`${apiUrl}/api/startup/${id}`, {
         withCredentials: true,
         headers: {
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         }
       })
@@ -94,7 +96,6 @@ export function StartupsList() {
 
   const assignMentor = (startup: any) => {
     setSelectedStartup(startup)
-    setAssignMentorDialogOpen(true)
   }
 
   const scheduleMeeting = (startup: any) => {
@@ -170,7 +171,6 @@ export function StartupsList() {
                           <DropdownMenuItem onClick={() => viewStartupDetails(startup)}>View details</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => editStartup(startup)}>Edit startup</DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => assignMentor(startup)}>Assign mentor</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => scheduleMeeting(startup)}>Schedule meeting</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
@@ -207,12 +207,6 @@ export function StartupsList() {
             startup={selectedStartup}
             open={editDialogOpen}
             onOpenChange={setEditDialogOpen}
-            onSuccess={fetchStartups}
-          />
-          <AssignMentorDialog
-            startup={selectedStartup}
-            open={assignMentorDialogOpen}
-            onOpenChange={setAssignMentorDialogOpen}
             onSuccess={fetchStartups}
           />
           <ScheduleMeetingDialog

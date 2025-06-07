@@ -36,7 +36,6 @@ interface Event {
 export default function MyEventsPage() {
   const [events, setEvents] = useState<Event[]>([])
   const [registeredEvents, setRegisteredEvents] = useState<Event[]>([])
-  const [organizedEvents, setOrganizedEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType] = useState("all")
@@ -60,8 +59,6 @@ export default function MyEventsPage() {
       // Filter events where user is registered
       setRegisteredEvents(response.data.filter((event: Event) => event.registered && !event.is_organizer))
 
-      // Filter events where user is organizer
-      setOrganizedEvents(response.data.filter((event: Event) => event.is_organizer))
     } catch (error) {
       console.error("Error fetching events:", error)
       toast.error("Impossible de récupérer vos événements")
@@ -126,17 +123,6 @@ export default function MyEventsPage() {
     if (filterType === "all") return matchesSearch
     return matchesSearch && event.type === filterType
   })
-
-  const filteredOrganizedEvents = organizedEvents.filter((event) => {
-    const matchesSearch =
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (event.description && event.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      event.location.toLowerCase().includes(searchQuery.toLowerCase())
-
-    if (filterType === "all") return matchesSearch
-    return matchesSearch && event.type === filterType
-  })
-
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
@@ -164,12 +150,6 @@ export default function MyEventsPage() {
             <Link href="/events">
               <Button variant="outline" className="w-full sm:w-auto">
                 Parcourir les événements
-              </Button>
-            </Link>
-            <Link href="/events/create">
-              <Button className="w-full sm:w-auto flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Créer un événement
               </Button>
             </Link>
           </div>
@@ -207,7 +187,6 @@ export default function MyEventsPage() {
             <TabsTrigger value="registered">
               Événements auxquels je participe ({filteredRegisteredEvents.length})
             </TabsTrigger>
-            <TabsTrigger value="organized">Événements que j'organise ({filteredOrganizedEvents.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="registered">
@@ -282,120 +261,6 @@ export default function MyEventsPage() {
                 <p className="text-muted-foreground mb-6">Vous n'êtes inscrit à aucun événement pour le moment.</p>
                 <Link href="/events">
                   <Button>Parcourir les événements</Button>
-                </Link>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="organized">
-            {filteredOrganizedEvents.length > 0 ? (
-              <div className="space-y-6">
-                {filteredOrganizedEvents.map((event) => {
-                  const { day, month, year } = formatDate(event.date)
-                  return (
-                    <Card key={event.id} className="overflow-hidden transition-all hover:shadow-lg">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="relative aspect-video md:aspect-square">
-                          <Image
-                            src="/placeholder.svg?height=300&width=300"
-                            alt={event.title}
-                            width={300}
-                            height={300}
-                            className="object-cover w-full h-full"
-                          />
-                          <div className="absolute top-4 left-4">
-                            <div className="bg-white rounded-lg p-2 text-center shadow-md">
-                              <div className="text-xl font-bold text-primary">{day}</div>
-                              <div className="text-xs">{month}</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="md:col-span-2 p-6">
-                          <div className="flex flex-col h-full">
-                            <div className="mb-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-xl font-bold">{event.title}</h3>
-                                <Badge className="bg-primary text-white">{event.type}</Badge>
-                              </div>
-                              <p className="text-muted-foreground mb-4">
-                                {event.description || "Aucune description disponible."}
-                              </p>
-                              <div className="grid grid-cols-2 gap-2 mb-4">
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Calendar className="h-4 w-4 text-primary" />
-                                  <span>{`${day} ${month} ${year}`}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Clock className="h-4 w-4 text-primary" />
-                                  <span>{event.time}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm">
-                                  <MapPin className="h-4 w-4 text-primary" />
-                                  <span>{event.location}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Users className="h-4 w-4 text-primary" />
-                                  <span>
-                                    {event.participant_count} / {event.capacity || "∞"} participants
-                                  </span>
-                                </div>
-                              </div>
-                              {event.tags && (
-                                <div className="flex items-center gap-2 mb-4 flex-wrap">
-                                  <Tag className="h-4 w-4 text-primary" />
-                                  {event.tags.split(",").map((tag, index) => (
-                                    <Badge key={index} variant="outline" className="bg-muted/50">
-                                      {tag.trim()}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            <div className="mt-auto grid grid-cols-2 md:grid-cols-4 gap-2">
-                              <Link href={`/events/${event.id}`}>
-                                <Button variant="outline" className="w-full flex items-center gap-1">
-                                  <ExternalLink className="h-4 w-4" />
-                                  <span className="hidden md:inline">Voir</span>
-                                </Button>
-                              </Link>
-                              <Link href={`/events/${event.id}/edit`}>
-                                <Button variant="outline" className="w-full flex items-center gap-1">
-                                  <Edit className="h-4 w-4" />
-                                  <span className="hidden md:inline">Modifier</span>
-                                </Button>
-                              </Link>
-                              <Link href={`/events/${event.id}/participants`}>
-                                <Button variant="outline" className="w-full flex items-center gap-1">
-                                  <Users className="h-4 w-4" />
-                                  <span className="hidden md:inline">Participants</span>
-                                </Button>
-                              </Link>
-                              <Button
-                                variant="destructive"
-                                className="w-full flex items-center gap-1"
-                                onClick={() => handleDeleteEvent(event.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span className="hidden md:inline">Supprimer</span>
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-12 border rounded-lg bg-muted/10">
-                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-xl font-bold mb-2">Aucun événement organisé</h3>
-                <p className="text-muted-foreground mb-6">Vous n'avez pas encore créé d'événements.</p>
-                <Link href="/events/create">
-                  <Button className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Créer un événement
-                  </Button>
                 </Link>
               </div>
             )}

@@ -8,7 +8,13 @@ use App\Http\Controllers\Startup\StartupController;
 Route::get('/', [StartupController::class, 'index']); // Get all startups
 Route::get('/{id}', [StartupController::class, 'show']); // Get a specific startup
 Route::get('all/recent', [StartupController::class, 'recent']); // get all recent startups
+Route::get('/all/industries', [StartupController::class, 'industries']);
 
+Route::get('/get/summary', [StartupController::class, 'getStartupSummary']);
+// only student
+Route::middleware('role:student')->group(function () {
+    Route::get('get/my-startup', [StartupController::class, 'myStartup']);
+});
 // only admin
 Route::middleware('role:admin')->group(function () {
     Route::post('/', [StartupController::class, 'store']); // Create a new startup
@@ -19,4 +25,6 @@ Route::middleware('role:admin')->group(function () {
     Route::delete('/meeting/delete/{id}', [StartupController::class, 'destroyMeet']);
     Route::get('/mentor_startup/{startupId}', [StartupController::class, 'MentorFromStartup']);
     Route::get('/startup_mentor/{mentorId}', [StartupController::class, 'StartupsFromMentor']);
+    Route::get('/team/{id}/founders', [StartupController::class, 'getFounders']);
+    Route::post('/assign/{studentId}', [StartupController::class, 'assignStartup']);
 });

@@ -40,19 +40,15 @@ export function RecentStartups({ className }: RecentStartupsProps) {
 
     const fetchRecentStartups = async () => {
       axios
-        .get(`${apiUrl}/api/startup/recent`,{ headers: {
-          Authorization: `Bearer ${accessToken}`,
-        }})
+        .get(`${apiUrl}/api/startup/all/recent`)
         .then(res => {
-          console.log(res);
           setStartups(res.data)
+          
         })
-      .catch(error => {
-        console.error("Error fetching recent startups:", error)
+      .catch(() => {
         setStartups([])
       })
     }
-
     fetchRecentStartups()
   }, [])
 
@@ -81,7 +77,7 @@ export function RecentStartups({ className }: RecentStartupsProps) {
               </TableHeader>
               <TableBody>
                 {startups.map((startup) => (
-                  <TableRow key={startup.project_id}>
+                  <TableRow key={startup.id}>
                     <TableCell className="font-medium">{startup.name}</TableCell>
                     <TableCell>{startup.industry}</TableCell>
                     <TableCell>{startup.stage}</TableCell>

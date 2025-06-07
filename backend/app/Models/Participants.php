@@ -16,5 +16,6 @@ class Participants extends Model
         'organisation',
         'expectations',
         'event_id',
+        "checkin_token",
     ];
 }

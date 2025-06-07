@@ -3,15 +3,18 @@
 namespace App\Http\Controllers\Startup;
 
 use App\Http\Controllers\Controller;
-use App\Models\Meeting;
-use App\Models\Mentor;
+use App\Mail\AcceptedToStartup;
 use App\Models\Startup;
 use App\Models\Stats;
+use App\Models\Student;
 use App\Models\Team;
-use Carbon\Carbon;
+use App\Models\TeamMember;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class StartupController extends Controller
 {
@@ -86,8 +89,31 @@ class StartupController extends Controller
             if (!empty($data['modified_date'])) {
                 $data['modified_date'] = date('Y-m-d H:i:s', strtotime($data['modified_date']));
             }
+            $team = Team::find($data["team_id"]);
+            if (!$team) {
+                return response()->json(['success' => false, 'message' => 'Team not found.'], 404);
+            }
+            $founder = DB::table('team_members')
+                ->where('team_id', $data['team_id'])
+                ->where('role', 'founder')
+                ->first();
 
+            if (!$founder) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Founder not found in the team.',
+                ], 404);
+            }
+            $student = Student::find($founder->student_id);
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student not found.',
+                ], 404);
+            }
             $startup = Startup::create($data);
+            $student->startup_id = $startup->id;
+            $student->save();
 
             $counter = Stats::firstOrCreate(
                 ['counted_obj' => 'startups'],
@@ -98,6 +124,15 @@ class StartupController extends Controller
             DB::table('teams')
                 ->where('id', $data['team_id'])
                 ->update(['startup_id' => $startup->id]);
+
+            $studentIds = DB::table('team_members')
+                ->where('team_id', $data['team_id'])
+                ->pluck('student_id');
+
+            DB::table('student')
+                ->whereIn('id', $studentIds)
+                ->update(['startup_id' => $startup->id]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Startup Created Successfully',
@@ -111,6 +146,7 @@ class StartupController extends Controller
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+
     // Get A Startup Data's
     function show($project_id)
     {
@@ -128,6 +164,7 @@ class StartupController extends Controller
             "data" => $startup,
         ], Response::HTTP_OK);
     }
+
     // Update A Startup Data's
     function update($id)
     {
@@ -186,6 +223,7 @@ class StartupController extends Controller
             throw $th;
         }
     }
+
     // Drop A Startup
     function destroy($id)
     {
@@ -198,19 +236,18 @@ class StartupController extends Controller
                 ], Response::HTTP_NOT_FOUND);
             }
 
-            $relation = DB::table('mentor_startup')->where('startup_id', $id)->first();
-            if ($relation) {
-                $mentor = Mentor::find($relation->mentor_id);
-                if ($mentor) {
-                    $mentor->availability = 'available';
-                    $mentor->startups = max(0, $mentor->startups - 1);
-                    $mentor->save();
-                    DB::table('mentor_startup')
-                        ->where('startup_id', $id)
-                        ->where('mentor_id', $relation->mentor_id)
-                        ->delete();
-                }
-            }
+            DB::table('student')
+                ->where('startup_id', $id)
+                ->update(['startup_id' => null]);
+
+
+            DB::table('mentors')
+                ->where('startup_id', $id)
+                ->update([
+                    'availability' => 'available',
+                    'startup_id' => null,
+                    'startups' => DB::raw('GREATEST(startups - 1, 0)')
+                ]);
 
             $startup->delete();
             $maxId = Startup::max('id');
@@ -233,59 +270,23 @@ class StartupController extends Controller
             ], Response::HTTP_OK);
         }
     }
-
-    function meetingSchedule(Request $req)
-    {
-        try {
-            $data = $req->validate([
-                'mentor_id' => 'required|exists:mentors,id',
-                'team_id' => 'required|exists:teams,id',
-                "title" => "nullable|string",
-                "description" => "nullable|string",
-                "duration" => "nullable|string",
-                "type" => "required|string",
-                'date' => 'required|date|after:now',
-                'time' => 'required|string',
-            ]);
-
-            $data['date'] = Carbon::parse($data['date'])->toDateString();
-
-            $meeting = Meeting::create($data);
-            return response()->json([
-                'success' => true,
-                'message' => 'Meeting scheduled',
-                'meeting' => $meeting
-            ]);
-        } catch (\Throwable $th) {
-            return response()->json([
-                'success' => false,
-                'error' => $th->getMessage()
-            ]);
-        }
-    }
-
-    private function destroyMeet()
-    {
-        Meeting::where('status', 'completed')
-            ->where('date', '<', now()->subDays(1))
-            ->delete();
-    }
-    public function completed($id)
-    {
-        try {
-            Meeting::where('id', $id)->update(['status' => 'completed']);
-            return response()->json([
-                'success' => true,
-                'message' => "status updated successfuly"
-            ]);
-            $this->destroyMeet();
-        } catch (\Throwable $th) {
-            return response()->json([
-                'success' => false,
-                'error' => $th->getMessage()
-            ]);
-        }
-    }
+    // Get The Completed Meetings
+    // public function completed($id)
+    // {
+    //     try {
+    //         Meeting::where('id', $id)->update(['status' => 'completed']);
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => "status updated successfuly"
+    //         ]);
+    //         $this->destroyMeet();
+    //     } catch (\Throwable $th) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'error' => $th->getMessage()
+    //         ]);
+    //     }
+    // }
 
     public function MentorFromStartup($startupId)
     {
@@ -376,6 +377,220 @@ class StartupController extends Controller
                 "success" => false,
                 'message' => $th->getMessage()
             ]);
+        }
+    }
+    public function myStartup(Request $request)
+    {
+        $authHeader = $request->header('Authorization');
+
+        if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Authorization token missing or invalid.'
+            ], 401);
+        }
+
+        $token = str_replace('Bearer ', '', $authHeader);
+
+        try {
+            $key = env('JWT_SECRET');
+            $decoded = JWT::decode($token, new Key($key, 'HS256'));
+
+            $student = Student::where('matricule', $decoded->matricule)->first();
+
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student not found.'
+                ], 404);
+            }
+
+            if (!$student->startup_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No startup associated with this student.'
+                ], 404);
+            }
+
+            $startup = Startup::find($student->startup_id);
+
+            if (!$startup) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Startup not found.'
+                ], 404);
+            }
+
+            $teamId = $startup->team_id;
+
+            $founders = DB::table('team_members')
+                ->join('student', 'team_members.student_id', '=', 'student.id')
+                ->where('team_members.team_id', $teamId)
+                ->where('team_members.role', 'founder')
+                ->select('student.id', 'student.first_name_ar', 'student.email', 'team_members.role')
+                ->get();
+
+            $teamMembers = DB::table('team_members')
+                ->join('student', 'team_members.student_id', '=', 'student.id')
+                ->where('team_members.team_id', $teamId)
+                ->select('student.id', 'student.first_name_ar', 'student.email', 'team_members.role')
+                ->get();
+
+            $startup->founders = $founders;
+            $startup->team_members = $teamMembers;
+
+            return response()->json([
+                'success' => true,
+                'startup' => $startup
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid token.',
+                'error' => $e->getMessage()
+            ], 401);
+        }
+    }
+
+    private function getIndustryColor($industryName)
+    {
+        $colors = [
+            "Technology" => "#0ea5e9",
+            "Healthcare" => "#10b981",
+            "Finance" => "#f59e0b",
+            "Education" => "#8b5cf6",
+            "Retail" => "#ec4899",
+            "Manufacturing" => "#f43f5e",
+            "Other" => "#6b7280",
+        ];
+
+        return $colors[$industryName] ?? "#6b7280";
+    }
+    public function industries()
+    {
+        try {
+            $startups = Startup::all();
+            $industryCounts = [
+                "Technology" => 0,
+                "Healthcare" => 0,
+                "Finance" => 0,
+                "Education" => 0,
+                "Retail" => 0,
+                "Manufacturing" => 0,
+                "Other" => 0,
+            ];
+
+            foreach ($startups as  $startup) {
+                if (array_key_exists($startup->industry, $industryCounts)) {
+                    $industryCounts[$startup->industry]++;
+                } else {
+                    $industryCounts["Other"]++;
+                }
+            }
+
+            $totalStartups = count($startups);
+            $industries = [];
+
+            foreach ($industryCounts as $name => $count) {
+                $percentage = $totalStartups > 0 ? ($count / $totalStartups) * 100 : 0;
+
+                $industries[] = [
+                    'name' => $name,
+                    'percentage' => round($percentage, 2),
+                    'color' => $this->getIndustryColor($name),
+                ];
+            }
+
+            return $industries;
+        } catch (\Throwable $th) {
+            return response()->json([
+                'error' => 'Unable to fetch industries.',
+                "message" => $th
+            ], 500);
+        }
+    }
+
+    public function getStartupSummary()
+    {
+        try {
+            $startups = DB::table('startup')
+                ->join('teams', 'startup.team_id', '=', 'teams.id')
+                ->join('team_members', 'teams.id', '=', 'team_members.team_id')
+                ->join('student', 'team_members.student_id', '=', 'student.id')
+                ->select(
+                    'startup.id',
+                    'startup.name',
+                    'startup.progress',
+                    'startup.status',
+                    'startup.join_date as startDate',
+                    'startup.modified_date as endDate',
+                    DB::raw('GROUP_CONCAT(CONCAT(student.first_name_ar, " ", student.last_name_ar) ORDER BY student.id SEPARATOR ", ") as teamMembers')
+                )
+                ->groupBy('startup.id', 'startup.name', 'startup.progress', 'startup.status', 'startup.join_date', 'startup.modified_date')
+                ->get();
+
+            if ($startups->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No startups found',
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $startups,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching startup summary',
+                'error' => $th->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function assignStartup($studentId)
+    {
+        $data = request()->validate([
+            'project_id' => 'required',
+            "role" => "required"
+        ]);
+
+        try {
+            $startup = Startup::findOrFail($data['project_id']);
+            if (!$startup->team_id) {
+                return response()->json(['error' => 'Startup does not have an associated team.'], 400);
+            }
+
+            $student = Student::findOrFail($studentId);
+            $student->startup_id = $data['project_id'];
+            $student->save();
+
+            $existing = TeamMember::where('student_id', $studentId)
+                ->where('team_id', $startup->team_id)
+                ->first();
+
+            if ($existing) {
+                return response()->json(['message' => 'Student is already a member of the startup team.'], 200);
+            }
+
+            TeamMember::create([
+                'student_id' => $studentId,
+                'team_id' => $startup->team_id,
+                'role' => $data["role"],
+            ]);
+
+            Mail::to($student->email)->send(new AcceptedToStartup($student->last_name_ar));
+
+            return response()->json([
+                "success" => true,
+                'message' => 'Student successfully assigned to the startup team.'
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                "success" => false,
+                'message' => $th->getMessage()
+            ], 200);
         }
     }
 }

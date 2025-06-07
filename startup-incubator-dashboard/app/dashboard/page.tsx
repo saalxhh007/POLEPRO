@@ -9,26 +9,34 @@ import { ResourceAllocation } from "@/components/dashboard/resource-allocation"
 import { PerformanceChart } from "@/components/dashboard/performance-chart"
 import { IndustryDistribution } from "@/components/dashboard/industry-distribution"
 import { UpcomingDeadlines } from "@/components/dashboard/upcoming-deadlines"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 import { RootState } from "@/store"
 import { useRouter } from "next/navigation"
+import { useTokenRefresh } from "@/utils/useTokenRefresh"
+import loader from "@/components/ui/loader"
 
 export default function DashboardPage() {
+  const [loading, setLoading] = useState(true);
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
   const role = useSelector((state: RootState) => state.auth.role);
   const router = useRouter()
-  useEffect(() => {
-    console.log(isAuthenticated);
+  useTokenRefresh()
     
+  useEffect(() => {
     if (!isAuthenticated || role !== 'admin') {
       router.push('/unauthorized');
+    } else {
+      setLoading(false);
     }
   }, [isAuthenticated, role, router]);
   
-  if (!isAuthenticated || role !== 'admin') {
-    return null;
+  if (loading) {
+    return loader()
   }
+if (!isAuthenticated || role !== 'admin') {
+  return <p>Redirecting...</p>;
+}
   else {
   return (
     <DashboardShell>

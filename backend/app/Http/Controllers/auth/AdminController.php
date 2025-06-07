@@ -65,7 +65,7 @@ class AdminController extends Controller
                         "id" => $student["id"],
                         "matricule" => $student['matricule'],
                         'email' => $student['email'],
-                        'first_name_ar' => $student['last_name_ar'],
+                        'first_name_ar' => $student['first_name_ar'],
                         'last_name_ar' => $student['last_name_ar'],
                         'idea' => $student['idea'],
                         "name" => $student["name"],

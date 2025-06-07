@@ -5,7 +5,7 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { SettingsForm } from "@/components/dashboard/settings-form"
 import { useSelector } from "react-redux"
 import { RootState } from "@/store"
-import { useRouter } from "next/router"
+import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 
 export default function SettingsPage() {

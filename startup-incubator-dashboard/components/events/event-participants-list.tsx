@@ -16,7 +16,7 @@ interface Participant {
 }
 
 interface EventParticipantsListProps {
-  eventId: string
+  eventId: number | undefined
   limit?: number
 }
 

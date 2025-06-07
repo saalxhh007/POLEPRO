@@ -12,8 +12,6 @@ export default function StartupsPage() {
   const role = useSelector((state: RootState) => state.auth.role);
   const router = useRouter()
   useEffect(() => {
-    console.log(isAuthenticated);
-    
     if (!isAuthenticated || role !== 'admin') {
       router.push('/unauthorized');
     }

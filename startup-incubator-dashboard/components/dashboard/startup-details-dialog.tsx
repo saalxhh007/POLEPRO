@@ -23,7 +23,6 @@ export function StartupDetailsDialog({ startup, open, onOpenChange }: StartupDet
       .get(`${apiUrl}/api/team/${startup.team_id}/founders`)
       .then(response => {
         setFounders(response.data.founders)
-        console.log(response.data.founders);
        })
       .catch(err => {
         console.log(err);

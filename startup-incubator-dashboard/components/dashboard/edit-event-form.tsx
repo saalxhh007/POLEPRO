@@ -13,8 +13,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Calendar, Clock, MapPin, Users, Info, ImageIcon, Upload } from "lucide-react"
 import { useRouter } from "next/navigation"
 import axios from "axios"
-import { error } from "console"
 import toast from "react-hot-toast"
+import { RootState } from "@/store"
+import { useSelector } from "react-redux"
 
 interface EditEventFormProps {
   eventId: number
@@ -23,10 +24,32 @@ interface EditEventFormProps {
 export function EditEventForm({ eventId }: EditEventFormProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("basic")
-  const [posterPreview, setPosterPreview] = useState<string | null>("/placeholder.svg?height=300&width=200")
+  const [fichePreview, setFichePreview] = useState<string | null>(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const [eventData, setEventData] = useState({
+    title: "",
+    type: "",
+    date: "",
+    time: "",
+    location: "",
+    capacity: "",
+    description: "",
+    speakers: "",
+    tags: "",
+    fiche: null,
+    fiche_title: "",
+    fiche_alternatif: "",
+    supp: null,
+    displayOnHomepage: false,
+  });
 
-  const [eventData, setEventData] = useState<any>({})
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedDate = e.target.value;
+    const [year, month, day] = selectedDate.split('-');
+    const formattedDate = `${day}/${month}/${year}`;
+    setEventData((prev) => ({ ...prev, date: formattedDate }));
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target
@@ -42,37 +65,59 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
   }
 
   const handleSubmit = (e: React.FormEvent) => {
-
-    const toastId = toast.loading("Deleting Event ...")
-    try {
-      axios
-        .post(`${apiUrl}api/event/${eventId}`, { eventData })
-        .then(response => {
-          console.log(response);
-          
-        })
-        .catch((error) => {
-          toast.error("Failed To Update The Event !")
-        })
-    } catch (error) {
-      
-    }
     e.preventDefault()
-    console.log("Données de l'événement mises à jour:", eventData)
-    alert("Événement mis à jour avec succès!")
-    router.push("/dashboard/events")
+    const toastId = toast.loading("Updating Event ...")
+    
+    axios
+      .put(`${apiUrl}/api/event/events/${eventId}`, eventData, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        withCredentials: true,
+      })
+      .then(response => {
+        toast.success("Event Updated Successfully")
+        router.push("/dashboard/events")
+      })
+      .catch((error) => {
+        console.log(error)
+        toast.error("Failed To Update The Event!")
+      })
+      .finally(() => {
+        toast.dismiss(toastId)
+      })
   }
 
   const fetchData = (eventId: number) => {
     axios
       .get(`${apiUrl}/api/event/${eventId}`)
       .then((response) => {
+        const [year, month, day] = (response.data.data.date).split('-')
+        response.data.data.date = `${year}/${month}/${day}`;
         setEventData(response.data.data)
+        console.log(response.data.data);
+        
       })
+  }
+
+  const fetchPoster = (eventId: number) => {
+    axios.get(`${apiUrl}/api/fiche-poster/${eventId}`)
+      .then(() => {
+        setFichePreview(`/api/fiche-poster/${eventId}`);
+      })
+      .catch((err) => {
+      setFichePreview("/placeholder.svg?height=300&width=200");
+       })
   }
   useEffect(() => {
     fetchData(eventId)
+    fetchPoster(eventId)
   }, [])
+
+  useEffect(() => {
+    fetchPoster(eventId)
+  }, [eventId])
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -119,7 +164,11 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
               <Label htmlFor="date">Date</Label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input id="date" type="date" value={eventData.date} onChange={handleInputChange} className="pl-10" />
+                <Input
+                  id="date"
+                  type="date"
+                  value={eventData.date.split('/').reverse().join('-')}
+                  onChange={handleDateChange} className="pl-10" />
               </div>
             </div>
 
@@ -129,21 +178,13 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
                 <div className="relative flex-1">
                   <Clock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    id="timeStart"
+                    id="time"
                     type="time"
-                    value={eventData.timeStart}
+                    value={eventData.time}
                     onChange={handleInputChange}
                     className="pl-10"
                   />
                 </div>
-                <span>à</span>
-                <Input
-                  id="timeEnd"
-                  type="time"
-                  value={eventData.timeEnd}
-                  onChange={handleInputChange}
-                  className="flex-1"
-                />
               </div>
             </div>
           </div>
@@ -188,9 +229,9 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
 
         <TabsContent value="details" className="space-y-4 mt-4">
           <div className="space-y-2">
-            <Label htmlFor="longDescription">Description détaillée</Label>
+            <Label htmlFor="description">Description détaillée</Label>
             <Textarea
-              id="longDescription"
+              id="description"
               value={eventData.description}
               onChange={handleInputChange}
               placeholder="Description complète de l'événement"
@@ -234,13 +275,13 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
             <Label>Affiche de l'événement</Label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="border-2 border-dashed rounded-lg p-6 text-center hover:bg-muted/50 transition-colors cursor-pointer">
-                <input type="file" id="poster" className="hidden" accept="image/*" />
-                <label htmlFor="poster" className="cursor-pointer">
-                  {posterPreview ? (
+                <input type="file" id="fiche" className="hidden" accept="image/*" />
+                <label htmlFor="fiche" className="cursor-pointer">
+                  {fichePreview ? (
                     <div className="flex flex-col items-center">
                       <div className="relative w-full max-w-[200px] aspect-[3/4] mb-4">
                         <img
-                          src={posterPreview || "/placeholder.svg"}
+                          src={fichePreview || "/placeholder.svg"}
                           alt="Aperçu de l'affiche"
                           className="w-full h-full object-contain"
                         />

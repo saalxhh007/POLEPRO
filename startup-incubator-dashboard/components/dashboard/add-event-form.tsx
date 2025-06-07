@@ -1,18 +1,14 @@
 "use client"
-
 import type React from "react"
-
 import { DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import axios from "axios"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { format } from "date-fns"
 import { CalendarIcon, PlusCircle, X, Upload, ImageIcon, Clock, MapPin, Users, Info } from "lucide-react"
-
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -31,29 +27,26 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/store"
 
 interface AddEventFormProps {
   fetchEvents?: () => void
 }
-
 interface Intervenant {
-  id: string
-  name: string
-  role: string
-  bio: string
-  contact_info: string
+  id: number
+  nom: string
+  expertise: string
+  bio?: string
+  photo?: string
+  email: string
+  telephone?: string
+  organisation?: string
+  event_id?: number
+  role?: string
 }
 
 const EVENT_TYPES = ["workshop", "conference", "networking", "panel", "talk", "masterclass", "other"]
-
-// Initial intervenants data
-const INITIAL_INTERVENANTS: Intervenant[] = [
-  { id: "1", name: "Marie Dupont", role: "Expert en innovation", contact_info: "", bio: "" },
-  { id: "2", name: "Jean Martin", role: "Entrepreneur", contact_info: "", bio: ""  },
-  { id: "3", name: "Sophie Lefebvre", role: "Investisseur", contact_info: "", bio: ""  },
-  { id: "4", name: "Thomas Bernard", role: "Consultant", contact_info: "", bio: ""  },
-  { id: "5", name: "Camille Dubois", role: "Coach", contact_info: "", bio: ""  },
-]
 
 const formSchema = z.object({
   title: z.string().min(1, "Title Is Required"),
@@ -75,11 +68,14 @@ const formSchema = z.object({
 })
 
 const newIntervenantSchema = z.object({
-  id: z.string(),
-  name: z.string().min(1, "Name Is Required"),
-  role: z.string().min(1, "Role Is Required"),
-  bio: z.string(),
-  contact_info: z.string(),
+  nom: z.string().min(1, "Name is required"),
+  expertise: z.string().min(1, "Expertise is required"),
+  bio: z.string().optional(),
+  email: z.string().email("Invalid email address"),
+  telephone: z.string().optional(),
+  organisation: z.string().optional(),
+  event_id: z.number().optional(),
+  role: z.string().min(1, "Role is required"),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -91,8 +87,12 @@ export function AddEventForm({ fetchEvents }: any) {
   const [selectedFiche, setSelectedFiche] = useState<File | null>(null)
   const [fichePreview, setFichePreview] = useState<string | null>(null)
   const [supp, setSupp] = useState<File[]>([])
-  const [intervenants, setIntervenants] = useState<Intervenant[]>(INITIAL_INTERVENANTS)
+  const [intervenants, setIntervenants] = useState<Intervenant[]>([])
   const [newIntervenantDialogOpen, setNewIntervenantDialogOpen] = useState(false)
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
+  const [selectedIntervenantPhoto, setSelectedIntervenantPhoto] = useState<File | null>(null)
+  const [intervenantPhotoPreview, setIntervenantPhotoPreview] = useState<string | null>(null)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -116,10 +116,14 @@ export function AddEventForm({ fetchEvents }: any) {
   const newIntervenantForm = useForm<NewIntervenantFormValues>({
     resolver: zodResolver(newIntervenantSchema),
     defaultValues: {
-      name: "",
-      role: "",
+      nom: "",
+      expertise: "",
       bio: "",
-      contact_info: "",
+      email: "",
+      telephone: "",
+      organisation: "",
+      event_id: undefined,
+      role: "",
     },
   })
 
@@ -146,36 +150,62 @@ export function AddEventForm({ fetchEvents }: any) {
   const removeSupp = (index: number) => {
     setSupp((prev) => prev.filter((_, i) => i !== index))
   }
-// ( this would come from the backend )
-  const handleCreateNewIntervenant = (data: NewIntervenantFormValues) => {
-    // Generate a unique ID (in a real app, this would come from the backend)
-    const newId = `new-${Date.now()}`
 
-    // Create the new intervenant
-    const newIntervenant: Intervenant = {
-      id: data.id,
-      name: data.name,
-      role: data.role,
-      bio: data.bio,
-      contact_info: data.contact_info
+  const handleIntervenantPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      setSelectedIntervenantPhoto(file)
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setIntervenantPhotoPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+  // ( this would come from the backend )
+  const handleCreateNewIntervenant = (data: NewIntervenantFormValues) => {
+    
+    const intervenantFormData = new FormData()
+    intervenantFormData.append("nom", data.nom)
+    intervenantFormData.append("expertise", data.expertise)
+    intervenantFormData.append("email", data.email)
+    intervenantFormData.append("role", data.role)
+
+    if (data.bio) intervenantFormData.append("bio", data.bio)
+    if (data.telephone) intervenantFormData.append("telephone", data.telephone)
+    if (data.organisation) intervenantFormData.append("organisation", data.organisation)
+    if (data.event_id) intervenantFormData.append("event_id", data.event_id.toString())
+    if (selectedIntervenantPhoto) {
+      intervenantFormData.append("photo", selectedIntervenantPhoto)
     }
 
-    // Add to the intervenants array
-    setIntervenants((prev) => [...prev, newIntervenant])
 
-    // Select the new intervenant
-    const currentIntervenants = form.getValues("intervenants")
-    form.setValue("intervenants", [...currentIntervenants, newId])
-
-    // Close the dialog and reset the form
-    setNewIntervenantDialogOpen(false)
-    newIntervenantForm.reset()
-
-    // Show success message
-    toast.success("Intervenant ajouté avec succès!")
+    const toastId = toast.loading("Adding Intervenat")
+    axios.post(`${apiUrl}/api/intervenant`, intervenantFormData, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      },
+    })
+      .then((response) => {
+        const savedIntervenant = response.data.data
+        setIntervenants((prev) => [...prev, savedIntervenant])
+        const currentIntervenants = form.getValues("intervenants")
+        form.setValue("intervenants", [...currentIntervenants, savedIntervenant.id.toString()])
+        setNewIntervenantDialogOpen(false)
+        newIntervenantForm.reset()
+        setSelectedIntervenantPhoto(null)
+        setIntervenantPhotoPreview(null)
+        toast.success("Intervenant créé avec succès!")
+        toast.dismiss(toastId)
+      })
+      .catch((err) => {
+        console.error("Error creating intervenant:", err)
+        toast.error("Erreur lors de la création de l’intervenant")
+        toast.dismiss(toastId)
+    })
   }
-
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
   function onSubmit(data: FormValues) {
     const formData = new FormData()
@@ -195,17 +225,16 @@ export function AddEventForm({ fetchEvents }: any) {
       formData.append("fiche", selectedFiche)
     }
     supp.forEach((doc, index) => {
-      formData.append(`supp_${index}`, doc)
+      formData.append(`supp`, doc)
     })
     const valuesArray = Array.from(formData.entries())
-
     const toastId = toast.loading("Création de l'événement...")
 
     axios
       .post(`${apiUrl}/api/event`, formData, {
         withCredentials: true,
         headers: {
-          "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${accessToken}`,
         },
       })
       .then((response) => {
@@ -222,6 +251,27 @@ export function AddEventForm({ fetchEvents }: any) {
       })
   }
 
+  const fetchIntervenants = () => {
+      axios.get(`${apiUrl}/api/intervenant`, {
+        withCredentials: true,
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      })
+        
+        .then((response) => {
+          setIntervenants(response.data.data);
+        })
+        .catch((err) => {
+          console.error('Error fetching intervenants:', err);
+      })
+  };
+  
+  useEffect(() => {
+    if (open) {
+      fetchIntervenants();
+    }
+  }, [open]);
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -430,10 +480,10 @@ export function AddEventForm({ fetchEvents }: any) {
                               {intervenants.map((intervenant) => (
                                 <SelectItem
                                   key={intervenant.id}
-                                  value={(intervenant.id).toString()}
-                                  disabled={field.value.includes((intervenant.id).toString())}
+                                  value={intervenant.id.toString()}
+                                  disabled={field.value.includes(intervenant.id.toString())}
                                 >
-                                  {intervenant.name} - {intervenant.role}
+                                  {intervenant.nom} - {intervenant.role}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -444,11 +494,11 @@ export function AddEventForm({ fetchEvents }: any) {
                           </Button>
                         </div>
                         <div className="flex flex-wrap gap-2 mt-2">
-                          {field.value.map((intervenantId) => {
+                          {field.value.map((intervenantId: any) => {
                             const intervenant = intervenants.find((i) => i.id === intervenantId)
                             return (
                               <Badge key={intervenantId} variant="secondary" className="flex items-center gap-1">
-                                {intervenant?.name}
+                                {intervenant?.nom}
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -613,7 +663,7 @@ export function AddEventForm({ fetchEvents }: any) {
 
       {/* Dialog for creating a new intervenant */}
       <Dialog open={newIntervenantDialogOpen} onOpenChange={setNewIntervenantDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Ajouter un nouvel intervenant</DialogTitle>
             <DialogDescription>
@@ -622,32 +672,148 @@ export function AddEventForm({ fetchEvents }: any) {
           </DialogHeader>
           <Form {...newIntervenantForm}>
             <form onSubmit={newIntervenantForm.handleSubmit(handleCreateNewIntervenant)} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={newIntervenantForm.control}
+                  name="nom"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nom *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nom de l'intervenant" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={newIntervenantForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rôle *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Rôle de l'intervenant" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={newIntervenantForm.control}
+                  name="expertise"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Expertise *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Domaine d'expertise" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={newIntervenantForm.control}
+                  name="organisation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Organisation</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Entreprise ou organisation" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={newIntervenantForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email *</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="email@exemple.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={newIntervenantForm.control}
+                  name="telephone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Téléphone</FormLabel>
+                      <FormControl>
+                        <Input placeholder="+33 1 23 45 67 89" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={newIntervenantForm.control}
-                name="name"
+                name="bio"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nom</FormLabel>
+                    <FormLabel>Biographie</FormLabel>
                     <FormControl>
-                      <Input placeholder="Nom de l'intervenant" {...field} />
+                      <Textarea
+                        placeholder="Biographie de l'intervenant..."
+                        className="min-h-[100px] resize-none"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={newIntervenantForm.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Rôle</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Rôle de l'intervenant" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+
+              <div className="space-y-2">
+                <FormLabel>Photo de l'intervenant</FormLabel>
+                <div className="flex gap-4">
+                  <div className="border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition-colors cursor-pointer flex-1">
+                    <input
+                      type="file"
+                      id="intervenant-photo"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleIntervenantPhotoChange}
+                    />
+                    <label htmlFor="intervenant-photo" className="cursor-pointer">
+                      {intervenantPhotoPreview ? (
+                        <div className="flex flex-col items-center">
+                          <div className="relative w-20 h-20 mb-2">
+                            <img
+                              src={intervenantPhotoPreview || "/placeholder.svg"}
+                              alt="Aperçu de la photo"
+                              className="w-full h-full object-cover rounded-full"
+                            />
+                          </div>
+                          <Button variant="outline" size="sm" type="button">
+                            Changer la photo
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center">
+                          <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
+                          <p className="text-sm font-medium">Ajouter une photo</p>
+                          <p className="text-xs text-muted-foreground mt-1">PNG, JPG jusqu'à 2MB</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setNewIntervenantDialogOpen(false)}>
                   Annuler

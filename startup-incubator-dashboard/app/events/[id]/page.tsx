@@ -4,83 +4,67 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
 import Image from "next/image"
 import Link from "next/link"
 import { Calendar, Clock, MapPin, Share2, Users, ChevronLeft, ExternalLink, Eye } from "lucide-react"
 import { EventRegistrationForm } from "@/components/events/event-registration-form"
-import { EventParticipantsList } from "@/components/events/event-participants-list"
 import { EventDocuments } from "@/components/events/event-documents"
 import { EventComments } from "@/components/events/event-comments"
+import { useEffect, useState } from "react"
+import { useSelector } from "react-redux"
+import loader from "@/components/ui/loader"
+import axios from "axios"
 
-export default function EventPage({ params }: { params: { id: string } }) {
-  // Dans une application réelle, vous récupéreriez les détails de l'événement à partir d'une API ou d'une base de données
-  const event = {
-    id: params.id,
-    title: "Atelier d'Innovation Entrepreneuriale",
-    description:
-      "Cet atelier intensif de trois heures vous permettra d'explorer les méthodologies d'innovation les plus récentes et d'apprendre à les appliquer à votre projet entrepreneurial. Vous travaillerez en petits groupes sur des cas pratiques et bénéficierez des conseils personnalisés de nos mentors experts.",
-    longDescription: `
-      <p>L'innovation est au cœur de tout projet entrepreneurial réussi. Cet atelier vous donnera les outils et méthodologies nécessaires pour développer une approche innovante dans votre startup.</p>
+export default function EventPage({ params }: { params: Promise<{ id: number }> }) {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const event = useSelector((state: any) => state.event)
+  const [posterUrl, setPosterUrl] = useState("");
+  const [loading, setLoading] = useState(true)
+  const [intervenants, setIntervenants] = useState<any[]>([])
+  const remainingPlaces = (event?.capacity ?? 0) - (event?.registered ?? 0);
+
+  const fetchIntervenants = () => {
+    
+    axios.get(`${apiUrl}/api/intervenant/event/${event.id}`)
+      .then((response) => {
+        console.log(response.data);
+        
+      setIntervenants(response.data.data)
+      })
+      .catch((error) => {
+        console.log(error);
+      }
       
-      <p>Au programme :</p>
-      <ul>
-        <li>Introduction aux méthodologies d'innovation (Design Thinking, Lean Startup)</li>
-        <li>Techniques de créativité et de génération d'idées</li>
-        <li>Validation des hypothèses et prototypage rapide</li>
-        <li>Études de cas et exemples de réussite</li>
-        <li>Travaux pratiques en petits groupes</li>
-        <li>Sessions de feedback personnalisé avec nos mentors</li>
-      </ul>
-      
-      <p>Cet atelier s'adresse aux entrepreneurs en phase de démarrage, aux porteurs de projets, et à toute personne intéressée par l'innovation entrepreneuriale.</p>
-      
-      <p>Le nombre de places est limité pour garantir une expérience de qualité et des interactions personnalisées avec nos mentors.</p>
-    `,
-    date: "15 Juin 2025",
-    time: "14:00 - 17:00",
-    location: "Université de Guelma, Salle de Conférence A",
-    locationDetails: "Bâtiment principal, 2ème étage, Salle 203",
-    capacity: 50,
-    registered: 32,
-    status: "upcoming",
-    category: "workshop",
-    tags: ["innovation", "entrepreneuriat", "méthodologie", "design thinking"],
-    speakers: [
-      {
-        id: "1",
-        name: "Dr. Ahmed Benali",
-        role: "Expert en Innovation",
-        organization: "Université de Guelma",
-        bio: "Docteur en management de l'innovation avec plus de 15 ans d'expérience dans l'accompagnement de startups innovantes.",
-        image: "/placeholder.svg?height=100&width=100",
-      },
-      {
-        id: "2",
-        name: "Samira Hadj",
-        role: "Entrepreneure & Mentore",
-        organization: "TechInnovate",
-        bio: "Fondatrice de trois startups à succès et mentore pour plus de 50 projets entrepreneuriaux.",
-        image: "/placeholder.svg?height=100&width=100",
-      },
-    ],
-    poster: "/placeholder.svg?height=800&width=600",
-    documents: [
-      { id: "1", name: "Programme détaillé", type: "pdf", size: "1.2 MB", url: "#" },
-      { id: "2", name: "Supports de présentation", type: "pptx", size: "5.8 MB", url: "#" },
-      { id: "3", name: "Ressources complémentaires", type: "pdf", size: "3.4 MB", url: "#" },
-    ],
-    relatedEvents: [
-      { id: "2", title: "Pitch Perfect: Présenter son projet aux investisseurs", date: "20 Juin 2025" },
-      { id: "3", title: "Financement des startups: Options et stratégies", date: "25 Juin 2025" },
-    ],
+    )
   }
+  useEffect(() => {
+    if (event) {
+      fetchIntervenants()
+      setLoading(false);
+      axios.get(`${apiUrl}/api/event/fiche-poster/${event.id}`)
+          .then(() => {
+            setPosterUrl(`${apiUrl}/api/event/fiche-poster/${event.id}`);
+          })
+          .catch(() => {
+          })
+      fetchIntervenants()
+    }
+    else {
+      setLoading(true);
+    }
+  }, [event]);
 
-  return (
-    <div className="container py-8">
-      <div className="mb-6">
+  if (loading) {
+    return loader();
+  }
+    return (
+      <div className="container py-8">
+        {loading ? (
+          loader()
+        ) : (
+            <>
+        <div className="mb-6">
         <Link href="/events" className="flex items-center text-sm text-muted-foreground hover:text-primary mb-4">
           <ChevronLeft className="mr-1 h-4 w-4" />
           Retour aux événements
@@ -91,16 +75,16 @@ export default function EventPage({ params }: { params: { id: string } }) {
             <div className="flex items-center gap-2 mb-2">
               <Badge
                 className={
-                  event.category === "workshop"
+                  event?.type === "workshop"
                     ? "bg-blue-100 text-blue-800"
-                    : event.category === "conference"
+                    : event?.type === "conference"
                       ? "bg-purple-100 text-purple-800"
                       : "bg-green-100 text-green-800"
                 }
               >
-                {event.category === "workshop"
+                {event?.type === "workshop"
                   ? "Atelier"
-                  : event.category === "conference"
+                  : event?.type === "conference"
                     ? "Conférence"
                     : "Événement"}
               </Badge>
@@ -108,7 +92,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
                 Places disponibles
               </Badge>
             </div>
-            <h1 className="text-3xl font-bold">{event.title}</h1>
+            <h1 className="text-3xl font-bold">{event?.title}</h1>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -116,7 +100,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
               className="flex items-center gap-2"
               onClick={() => {
                 // Dans une application réelle, ceci ouvrirait une boîte de dialogue de partage
-                alert(`Partager l'événement "${event.title}"`)
+                alert(`Partager l'événement "${event?.title}"`)
               }}
             >
               <Share2 className="h-4 w-4" />
@@ -126,8 +110,6 @@ export default function EventPage({ params }: { params: { id: string } }) {
               variant="outline"
               className="flex items-center gap-2"
               onClick={() => {
-                // Dans une application réelle, ceci ajouterait l'événement aux favoris
-                alert(`Événement "${event.title}" ajouté aux favoris`)
               }}
             >
               <svg
@@ -168,7 +150,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
           <Card>
             <CardContent className="p-0 overflow-hidden rounded-lg">
               <div className="relative aspect-video">
-                <Image src="/placeholder.svg?height=400&width=800" alt={event.title} fill className="object-cover" />
+                <Image src={posterUrl || "/placeholder.svg"} alt={event?.title} fill className="object-cover" />
               </div>
             </CardContent>
           </Card>
@@ -188,7 +170,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
                   <CardTitle>À propos de cet événement</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: event.longDescription }} />
+                  <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: event?.description }} />
                 </CardContent>
               </Card>
 
@@ -202,7 +184,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
                       <Calendar className="h-5 w-5 text-primary mt-0.5" />
                       <div>
                         <h3 className="font-medium">Date</h3>
-                        <p>{event.date}</p>
+                        <p>{event?.date}</p>
                       </div>
                     </div>
 
@@ -210,7 +192,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
                       <Clock className="h-5 w-5 text-primary mt-0.5" />
                       <div>
                         <h3 className="font-medium">Horaire</h3>
-                        <p>{event.time}</p>
+                        <p>{event?.time}</p>
                       </div>
                     </div>
 
@@ -218,8 +200,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
                       <MapPin className="h-5 w-5 text-primary mt-0.5" />
                       <div>
                         <h3 className="font-medium">Lieu</h3>
-                        <p>{event.location}</p>
-                        <p className="text-sm text-muted-foreground">{event.locationDetails}</p>
+                        <p>{event?.location}</p>
                       </div>
                     </div>
 
@@ -228,24 +209,24 @@ export default function EventPage({ params }: { params: { id: string } }) {
                       <div>
                         <h3 className="font-medium">Participants</h3>
                         <p>
-                          {event.registered} inscrits sur {event.capacity} places disponibles
+                          {event?.registered} inscrits sur {event?.capacity} places disponibles
                         </p>
                         <div className="mt-2 w-full">
-                          <Progress value={(event.registered / event.capacity) * 100} className="h-2" />
+                          <Progress value={(event !== null? event?.registered / event?.capacity : 0) * 100} className="h-2" />
                         </div>
                       </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-
+{/* 
               <Card>
                 <CardHeader>
                   <CardTitle>Événements associés</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {event.relatedEvents.map((relatedEvent) => (
+                    {event?.relatedEvents.map((relatedEvent) => (
                       <Link key={relatedEvent.id} href={`/events/${relatedEvent.id}`}>
                         <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
                           <div>
@@ -258,7 +239,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
                     ))}
                   </div>
                 </CardContent>
-              </Card>
+              </Card> */}
             </TabsContent>
 
             <TabsContent value="speakers" className="space-y-4 mt-4">
@@ -269,17 +250,14 @@ export default function EventPage({ params }: { params: { id: string } }) {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
-                    {event.speakers.map((speaker) => (
-                      <div key={speaker.id} className="flex flex-col md:flex-row gap-4 items-start">
-                        <Avatar className="h-20 w-20">
-                          <AvatarImage src={speaker.image} alt={speaker.name} />
-                          <AvatarFallback>{speaker.name.substring(0, 2)}</AvatarFallback>
-                        </Avatar>
+                    {intervenants.map((intervenant) => (
+                      <div key={intervenant.id} className="flex flex-col md:flex-row gap-4 items-start">
+                        
                         <div className="space-y-2">
-                          <h3 className="text-xl font-bold">{speaker.name}</h3>
-                          <p className="text-primary font-medium">{speaker.role}</p>
-                          <p className="text-sm text-muted-foreground">{speaker.organization}</p>
-                          <p>{speaker.bio}</p>
+                          <h3 className="text-xl font-bold">{intervenant.nom}</h3>
+                          <p className="text-primary font-medium">{intervenant.role}</p>
+                          <p className="text-sm text-muted-foreground">{intervenant.expertise}</p>
+                          <p>{intervenant.bio}</p>
                         </div>
                       </div>
                     ))}
@@ -289,11 +267,11 @@ export default function EventPage({ params }: { params: { id: string } }) {
             </TabsContent>
 
             <TabsContent value="documents" className="mt-4">
-              <EventDocuments documents={event.documents} />
+              <EventDocuments documents={event?.supp} />
             </TabsContent>
 
             <TabsContent value="comments" className="mt-4">
-              <EventComments eventId={event.id} />
+              <EventComments eventId={event?.id} />
             </TabsContent>
           </Tabs>
         </div>
@@ -304,11 +282,11 @@ export default function EventPage({ params }: { params: { id: string } }) {
             <CardHeader className="bg-primary text-primary-foreground">
               <CardTitle>S'inscrire à cet événement</CardTitle>
               <CardDescription className="text-primary-foreground/80">
-                {event.capacity - event.registered} places restantes sur {event.capacity}
+                {remainingPlaces} places restantes sur {event?.capacity}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              <EventRegistrationForm eventId={event.id} />
+              <EventRegistrationForm eventId={event?.id} />
             </CardContent>
           </Card>
 
@@ -320,43 +298,14 @@ export default function EventPage({ params }: { params: { id: string } }) {
             <CardContent className="p-0 overflow-hidden">
               <div className="relative aspect-[3/4] bg-muted">
                 <Image
-                  src={event.poster || "/placeholder.svg"}
-                  alt={`Affiche: ${event.title}`}
+                  src={posterUrl || "/placeholder.svg"}
+                  alt={`Affiche: ${event?.title}`}
                   fill
                   className="object-contain p-2"
                 />
               </div>
-              <div className="p-4">
-                <Button
-                  variant="outline"
-                  className="w-full flex items-center justify-center gap-2"
-                  onClick={() => {
-                    // Dans une application réelle, ceci ouvrirait l'affiche en plein écran
-                    alert("Afficher l'affiche en plein écran")
-                  }}
-                >
-                  <Eye className="h-4 w-4" />
-                  <span>Voir l'affiche en plein écran</span>
-                </Button>
-              </div>
             </CardContent>
           </Card>
-
-          {/* Liste des participants */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle>Participants</CardTitle>
-              <Badge>{event.registered}</Badge>
-            </CardHeader>
-            <CardContent>
-              <EventParticipantsList eventId={event.id} limit={5} />
-              <Separator className="my-2" />
-              <Button variant="ghost" className="w-full text-primary" asChild>
-                <Link href={`/events/${event.id}/participants`}>Voir tous les participants</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
           {/* Tags */}
           <Card>
             <CardHeader>
@@ -364,16 +313,15 @@ export default function EventPage({ params }: { params: { id: string } }) {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                {event.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary">
-                    {tag}
+                  <Badge variant="secondary">
+                    {event?.tags}
                   </Badge>
-                ))}
               </div>
             </CardContent>
           </Card>
         </div>
-      </div>
+      </div></>
+        )}
     </div>
   )
 }

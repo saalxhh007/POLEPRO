@@ -1,74 +1,118 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, CheckCircle2, Clock, FileText, GitPullRequest, MessageSquare, Plus, Users } from "lucide-react"
+import { Calendar, CheckCircle2, Clock, FileText, GitPullRequest, MessageSquare, Users } from "lucide-react"
 import { AddTaskForm } from "./add-task-form"
+import axios from "axios"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/store"
+import { AddNoteForm } from "./add-note-form"
 
+interface Project {
+  id: any
+  name: string
+  progress: number
+  status: string
+  startDate: string
+  endDate: string
+  teamMembers: string
+}
 export function ProjectTracker() {
   const [selectedProject, setSelectedProject] = useState("1")
+  const [projects, setProjects] = useState<Project[]>([])
+  const [milestones, setMilestones] = useState<any>([])
+  const [tasks, setTasks] = useState<any>([])
+  const [notes, setNotes] = useState<any>([])
 
-  const projects = [
-    {
-      id: "1",
-      name: "EcoTech Solutions",
-      progress: 75,
-      status: "En cours",
-      startDate: "15 Jan 2025",
-      endDate: "15 Jul 2025",
-      team: ["Alex Green", "Jamie Lee"],
-      milestones: [
-        { id: "m1", title: "Validation de l'idée", status: "completed", date: "15 Fév 2025" },
-        { id: "m2", title: "Prototype MVP", status: "completed", date: "15 Mar 2025" },
-        { id: "m3", title: "Tests utilisateurs", status: "in-progress", date: "15 Mai 2025" },
-        { id: "m4", title: "Lancement bêta", status: "planned", date: "15 Jun 2025" },
-        { id: "m5", title: "Lancement officiel", status: "planned", date: "15 Jul 2025" },
-      ],
-      tasks: [
-        { id: "t1", title: "Finaliser l'interface utilisateur", status: "completed", assignee: "Jamie Lee" },
-        { id: "t2", title: "Intégrer l'API de paiement", status: "in-progress", assignee: "Alex Green" },
-        { id: "t3", title: "Optimiser les performances", status: "in-progress", assignee: "Jamie Lee" },
-        { id: "t4", title: "Préparer la documentation", status: "planned", assignee: "Alex Green" },
-      ],
-      kpis: [
-        { id: "k1", name: "Utilisateurs actifs", value: "120", target: "500", progress: 24 },
-        { id: "k2", name: "Taux de conversion", value: "3.5%", target: "5%", progress: 70 },
-        { id: "k3", name: "Temps moyen d'utilisation", value: "8 min", target: "12 min", progress: 67 },
-      ],
-    },
-    {
-      id: "2",
-      name: "MediConnect",
-      progress: 60,
-      status: "En cours",
-      startDate: "3 Nov 2024",
-      endDate: "3 Mai 2025",
-      team: ["Sarah Johnson", "Michael Chen"],
-      milestones: [
-        { id: "m1", title: "Validation de l'idée", status: "completed", date: "3 Déc 2024" },
-        { id: "m2", title: "Prototype MVP", status: "completed", date: "3 Fév 2025" },
-        { id: "m3", title: "Tests utilisateurs", status: "in-progress", date: "3 Avr 2025" },
-        { id: "m4", title: "Lancement officiel", status: "planned", date: "3 Mai 2025" },
-      ],
-      tasks: [
-        { id: "t1", title: "Développer le backend", status: "completed", assignee: "Michael Chen" },
-        { id: "t2", title: "Créer l'application mobile", status: "in-progress", assignee: "Sarah Johnson" },
-        { id: "t3", title: "Tester la sécurité", status: "planned", assignee: "Michael Chen" },
-      ],
-      kpis: [
-        { id: "k1", name: "Utilisateurs inscrits", value: "85", target: "200", progress: 42 },
-        { id: "k2", name: "Temps de réponse", value: "1.2s", target: "1s", progress: 83 },
-      ],
-    },
-  ]
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
+
+  const fetchProjects = () => {
+    axios
+      .get(`${apiUrl}/api/startup/get/summary`)
+      .then((response) => {
+        if (response.data.success) {
+          setProjects(response.data.data)
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching projects:", err)
+      })
+  }
+
+  const fetchMilestonnes = () => {
+    axios
+      .get(`${apiUrl}/api/milestone/${selectedProject}`, {
+        withCredentials: true,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+      .then((response) => {
+        if (response.data.success) {
+          setMilestones(response.data.data)
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching milestonnes:", err)
+      })
+  }
+
+  const fetchTasks = () => {
+    axios
+      .get(`${apiUrl}/api/tasks/startup/${selectedProject}`, {
+        withCredentials: true,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+      .then((response) => {
+        if (response.data.success) {
+          setTasks(response.data.data)
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching tasks:", err)
+      })
+  }
+
+  const fetchNotes = () => {
+    axios
+      .get(`${apiUrl}/api/notes/${selectedProject}`, {
+        withCredentials: true,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+      .then((response) => {
+        if (response.data.success) {
+          setNotes(response.data.data)
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching notes:", err)
+      })
+  }
 
   const selectedProjectData = projects.find((p) => p.id === selectedProject)
 
+  useEffect(() => {
+    fetchProjects()
+  }, [])
+
+  useEffect(() => {
+    if (selectedProject) {
+      fetchMilestonnes()
+      fetchTasks()
+      fetchNotes()
+    }
+  }, [selectedProject])
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -88,7 +132,7 @@ export function ProjectTracker() {
           <Button variant="outline">
             <FileText className="mr-2 h-4 w-4" /> Rapport
           </Button>
-          <AddTaskForm />
+          <AddTaskForm id={selectedProject} fetchTasks={fetchTasks} />
         </div>
       </div>
 
@@ -118,7 +162,7 @@ export function ProjectTracker() {
                   <h3 className="text-sm font-medium text-muted-foreground">Équipe</h3>
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedProjectData.team.join(", ")}</span>
+                    <span>{selectedProjectData.teamMembers}</span>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -126,8 +170,8 @@ export function ProjectTracker() {
                   <div className="flex items-center gap-2">
                     <GitPullRequest className="h-4 w-4 text-muted-foreground" />
                     <span>
-                      {selectedProjectData.milestones.find((m) => m.status === "in-progress")?.title ||
-                        selectedProjectData.milestones.find((m) => m.status === "planned")?.title}
+                      {milestones.find((m: any) => m.status === "in-progress")?.title ||
+                        milestones.find((m: any) => m.status === "planned")?.title}
                     </span>
                   </div>
                 </div>
@@ -139,7 +183,6 @@ export function ProjectTracker() {
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="milestones">Jalons</TabsTrigger>
               <TabsTrigger value="tasks">Tâches</TabsTrigger>
-              <TabsTrigger value="kpis">KPIs</TabsTrigger>
               <TabsTrigger value="notes">Notes</TabsTrigger>
             </TabsList>
             <TabsContent value="milestones">
@@ -150,9 +193,9 @@ export function ProjectTracker() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-8">
-                    {selectedProjectData.milestones.map((milestone, index) => (
+                    {milestones.map((milestone: any, index: any) => (
                       <div key={milestone.id} className="relative">
-                        {index < selectedProjectData.milestones.length - 1 && (
+                        {index < milestones.length - 1 && (
                           <div className="absolute top-6 left-3 h-full w-px bg-muted-foreground/20" />
                         )}
                         <div className="flex gap-4">
@@ -204,7 +247,7 @@ export function ProjectTracker() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {selectedProjectData.tasks.map((task) => (
+                    {tasks.map((task: any) => (
                       <div
                         key={task.id}
                         className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
@@ -221,7 +264,7 @@ export function ProjectTracker() {
                           />
                           <div>
                             <h3 className="font-medium">{task.title}</h3>
-                            <p className="text-sm text-muted-foreground">Assigné à: {task.assignee}</p>
+                            <p className="text-sm text-muted-foreground">Assigné à: {task.assigned_to}</p>
                           </div>
                         </div>
                         <Badge
@@ -245,49 +288,50 @@ export function ProjectTracker() {
                 </CardContent>
               </Card>
             </TabsContent>
-            <TabsContent value="kpis">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Indicateurs de performance (KPIs)</CardTitle>
-                  <CardDescription>Mesures clés de la performance du projet</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    {selectedProjectData.kpis.map((kpi) => (
-                      <div key={kpi.id} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-medium">{kpi.name}</h3>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{kpi.value}</span>
-                            <span className="text-sm text-muted-foreground">/ {kpi.target}</span>
-                          </div>
-                        </div>
-                        <Progress value={kpi.progress} className="h-2" />
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
             <TabsContent value="notes">
               <Card>
-                <CardHeader>
-                  <CardTitle>Notes et commentaires</CardTitle>
-                  <CardDescription>Discussions et notes sur le projet</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Notes et commentaires</CardTitle>
+                    <CardDescription>Discussions et notes sur le projet</CardDescription>
+                  </div>
+                  <AddNoteForm startupId={selectedProject} onNoteAdded={fetchNotes} />
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center justify-center h-40">
-                    <div className="flex flex-col items-center text-center">
-                      <MessageSquare className="h-10 w-10 text-muted-foreground/50" />
-                      <h3 className="mt-4 text-lg font-medium">Aucune note pour le moment</h3>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        Ajoutez des notes et des commentaires pour suivre les discussions importantes.
-                      </p>
-                      <Button className="mt-4">
-                        <Plus className="mr-2 h-4 w-4" /> Ajouter une note
-                      </Button>
+                  {notes.length === 0 ? (
+                    <div className="flex items-center justify-center h-40">
+                      <div className="flex flex-col items-center text-center">
+                        <MessageSquare className="h-10 w-10 text-muted-foreground/50" />
+                        <h3 className="mt-4 text-lg font-medium">Aucune note pour le moment</h3>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Ajoutez des notes et des commentaires pour suivre les discussions importantes.
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {notes.map((note: any) => (
+                        <div key={note.id} className="border rounded-lg p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                              {note.created_by && <span className="text-sm font-medium">{note.created_by}</span>}
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(note.created_at).toLocaleDateString("fr-FR", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -297,4 +341,3 @@ export function ProjectTracker() {
     </div>
   )
 }
-

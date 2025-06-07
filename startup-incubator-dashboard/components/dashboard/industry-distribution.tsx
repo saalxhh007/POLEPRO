@@ -1,19 +1,33 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { RootState } from "@/store"
+import axios from "axios"
+import { useEffect, useState } from "react"
+import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
 
 export function IndustryDistribution() {
-  // Données de répartition des startups par industrie
-  const industries = [
-    { name: "CleanTech", percentage: 25, color: "#0ea5e9" },
-    { name: "HealthTech", percentage: 20, color: "#10b981" },
-    { name: "FinTech", percentage: 15, color: "#f59e0b" },
-    { name: "AI/ML", percentage: 15, color: "#8b5cf6" },
-    { name: "Transportation", percentage: 10, color: "#ec4899" },
-    { name: "Education", percentage: 10, color: "#f43f5e" },
-    { name: "Other", percentage: 5, color: "#6b7280" },
-  ]
+  const [industries, setIndustries] = useState<any>([])
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const fetchIndusties = () => {
+    axios
+    .get(`${apiUrl}/api/startup/all/industries`, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    })
+      .then((response) => {
+      setIndustries(response.data)
+    }).catch((err) => {
+      toast.error("Error Fetching Industries")
+    })} 
 
+  useEffect(() => {
+    fetchIndusties()
+  }, [])
   return (
     <Card className="col-span-3">
       <CardHeader>
@@ -28,7 +42,7 @@ export function IndustryDistribution() {
 
             {/* Legend */}
             <g transform="translate(250, 50)">
-              {industries.map((industry, index) => (
+              {industries.map((industry: any, index: any) => (
                 <g key={industry.name} transform={`translate(0, ${index * 25})`}>
                   <rect width="15" height="15" fill={industry.color} />
                   <text x="20" y="12" fontSize="12" fill="#888">

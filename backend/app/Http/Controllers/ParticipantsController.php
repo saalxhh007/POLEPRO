@@ -5,14 +5,24 @@ namespace App\Http\Controllers;
 use App\Mail\AcceptanceNotification;
 use App\Mail\RejectionNotification;
 use App\Mail\ReminderMail;
+use App\Models\Event;
 use App\Models\Participants;
+use Endroid\QrCode\Builder\Builder;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel as QrCodeErrorCorrectionLevel;
+use Endroid\QrCode\RoundBlockSizeMode;
+use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Support\Str;
 
 class ParticipantsController extends Controller
 {
+    private $pending_event_request = 'private/pending_event_request.json';
+
     public function submit(Request $req)
     {
         try {
@@ -20,13 +30,13 @@ class ParticipantsController extends Controller
                 'name' => 'required',
                 "role" => "required",
                 'email' => 'required|email',
-                'phone' => "string",
-                'organization' => "string",
-                'expectations' => "string",
+                'phone' => "required|string",
+                'organization' => "string|nullable",
+                'expectations' => "string|nullable",
                 'event_id' => 'required',
             ]);
-            $pending = Storage::exists('pending_requests.json')
-                ? json_decode(Storage::get('pending_requests.json'), true)
+            $pending = Storage::exists($this->pending_event_request)
+                ? json_decode(Storage::get($this->pending_event_request), true)
                 : [];
 
             $pending[] = [
@@ -40,7 +50,7 @@ class ParticipantsController extends Controller
                 'event_id' => $req->event_id,
                 "status" => "pending"
             ];
-            Storage::put('pending_requests.json', json_encode($pending, JSON_PRETTY_PRINT));
+            Storage::put($this->pending_event_request, json_encode($pending, JSON_PRETTY_PRINT));
 
             return response()->json([
                 'success' => true,
@@ -58,35 +68,72 @@ class ParticipantsController extends Controller
     {
         try {
             $status = $request->input('status');
-            $pending = json_decode(Storage::get('pending_requests.json'), true);
+
+            $pending = json_decode(Storage::get($this->pending_event_request), true);
             $index = collect($pending)->search(fn($u) => $u['id'] === $id);
 
-            if ($index !== false) {
-                $user = $pending[$index];
+            if ($index === false) {
+                return response()->json(["success" => false, "message" => "User not found."]);
+            }
 
-                if ($status === 'confirmed') {
-                    Participants::create([
-                        'name' => $user["name"],
-                        'role' => $user["role"],
-                        'email' => $user["email"],
-                        'phone' => $user["phone"],
-                        'organization' => $user["organization"],
-                        'expectations' => $user["expectations"],
-                        'event_id' => $user["event_id"],
-                    ]);
 
-                    Mail::to($user['email'])->send(new AcceptanceNotification($user['name']));
-                } elseif ($status === 'declined') {
-                    Mail::to($user['email'])->send(new RejectionNotification($user['name']));
-                }
+            $user = $pending[$index];
+            $event = Event::findOrFail($user["event_id"]);
+            $currentCount = Participants::where('event_id', $user["event_id"])->count();
 
-                $pending[$index]['status'] = $status;
-                Storage::put('pending_requests.json', json_encode($pending, JSON_PRETTY_PRINT));
-
+            if ($currentCount >= $event->capacity) {
                 return response()->json([
-                    "success" => true,
-                    "message" => "User has been $status and notified."
+                    "success" => false,
+                    "message" => "Event has reached maximum capacity."
+                ], 400);
+            }
+            $this->deleteOne($user["event_id"], $user["id"]);
+            if ($status === 'confirmed') {
+                $token = Str::uuid();
+                $checkinUrl = url("api/participant/check-in/{$token}");
+
+                $participant = Participants::create([
+                    'name' => $user["name"],
+                    'role' => $user["role"],
+                    'email' => $user["email"],
+                    'phone' => $user["phone"],
+                    'organization' => $user["organization"],
+                    'expectations' => $user["expectations"],
+                    'event_id' => $user["event_id"],
+                    'checkin_token' => $token,
                 ]);
+
+                if (strtolower($user["role"]) === 'intervenant') {
+                    DB::table('event_intervenants')->insert([
+                        'event_id' => $user["event_id"],
+                        'intervenant_id' => $participant->id,
+                    ]);
+                }
+                $qrResult = (new Builder(
+                    writer: new PngWriter(),
+                    data: $checkinUrl,
+                    encoding: new Encoding('UTF-8'),
+                    errorCorrectionLevel: QrCodeErrorCorrectionLevel::High,
+                    size: 300,
+                    margin: 10,
+                    roundBlockSizeMode: RoundBlockSizeMode::Margin
+                ))->build();
+                $userId = $user['id'];
+                $qrFileName = "qr_codes/checkin_{$userId}.png";
+                storage_path("app/public/{$qrFileName}");
+
+                Storage::disk('public')->put($qrFileName, $qrResult->getString());
+
+                Mail::to($user['email'])->send(new AcceptanceNotification(
+                    $user['name'],
+                    $checkinUrl,
+                    storage_path("app/public/" . $qrFileName),
+                    $event->title
+                ));
+                return response()->json(["success" => true, "message" => "User approved successfully."]);
+            } elseif ($status === 'declined') {
+                Mail::to($user['email'])->send(new RejectionNotification($user['name']));
+                return response()->json(["success" => true, "message" => "User declined."]);
             }
 
             return response()->json(["success" => false, "message" => "User not found."]);
@@ -98,46 +145,38 @@ class ParticipantsController extends Controller
         }
     }
 
-    public function showParticipants()
+    public function showEventParticipants($eventId)
     {
         try {
-            $pending = Storage::exists('pending_requests.json')
-                ? json_decode(Storage::get('pending_requests.json'), true)
-                : [];
+            $participants = Participants::where('event_id', $eventId)->get();
 
-            $confirmed = Participants::all()->map(function ($participant) {
+            $pending_participants = [];
+
+            if (Storage::exists($this->pending_event_request)) {
+                $all_pending = json_decode(Storage::get($this->pending_event_request), true);
+
+                $pending_participants = array_filter($all_pending, function ($participant) use ($eventId) {
+                    return isset($participant['event_id']) && $participant['event_id'] == $eventId;
+                });
+
+                $pending_participants = array_values($pending_participants);
+            }
+            $participants = $participants->map(function ($participant) {
                 return [
-                    'id' => $participant->id,
-                    'name' => $participant->name,
-                    'email' => $participant->email,
-                    'phone' => $participant->phone,
-                    'organization' => $participant->organization,
-                    'role' => $participant->role,
-                    'status' => 'confirmed',
-                    'expectations' => $participant->expectations,
-                    "event_id" => $participant->event_id,
+                    ...$participant->toArray(),
+                    'status' => 'approved'
                 ];
-            })->toArray();
-
-            $pendingFormatted = collect($pending)->map(function ($p) {
+            });
+            $pending_participants = array_map(function ($pending_participants) {
                 return [
-                    'id' => $p['id'],
-                    'name' => $p['name'],
-                    'email' => $p['email'],
-                    'phone' => $p['phone'],
-                    'organization' => $p['organization'],
-                    'role' => $p['role'],
-                    'status' => $p['status'],
-                    'expectations' => $p['expectations'],
-                    'event_id' => $p['event_id'],
+                    ...$pending_participants,
+                    'status' => 'pending'
                 ];
-            })->toArray();
-
-            $allParticipants = array_merge($confirmed, $pendingFormatted);
-
+            }, $pending_participants);
             return response()->json([
                 'success' => true,
-                'participants' => $allParticipants
+                'participants' => $participants,
+                "pending_participants" => $pending_participants
             ]);
         } catch (\Throwable $th) {
             return response()->json([
@@ -147,33 +186,90 @@ class ParticipantsController extends Controller
         }
     }
 
-    public function deleteAll()
+    public function showEventIntervenants($eventId)
     {
         try {
-            // Check if the pending requests file exists
-            if (!Storage::exists('pending_requests.json')) {
+            $participants = Participants::where('event_id', $eventId)->get();
+            $intervenants = $participants->filter(function ($participant) {
+                return $participant->role === "intervenant";
+            });
+            return response()->json([
+                'success' => true,
+                'intervenants' => $intervenants
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => $th->getMessage()
+            ]);
+        }
+    }
+
+    public function deleteOne($eventId, $participantId)
+    {
+        try {
+            $pending = json_decode(Storage::get($this->pending_event_request), true);
+
+            $index = collect($pending)->search(function ($item) use ($eventId, $participantId) {
+                return $item['event_id'] == $eventId && $item['id'] == $participantId;
+            });
+
+            if ($index === false) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No pending requests found.'
-                ]);
+                    'message' => 'Pending request not found.'
+                ], 404);
             }
 
-            // Delete the file to remove all pending requests
-            Storage::delete('pending_requests.json');
+            unset($pending[$index]);
+
+            $pending = array_values($pending);
+            Storage::put($this->pending_event_request, json_encode($pending, JSON_PRETTY_PRINT));
 
             return response()->json([
                 'success' => true,
-                'message' => 'All pending requests deleted successfully.'
+                'message' => 'Pending request deleted successfully.'
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'An error occurred while processing your request.',
+                'error' => $e->getMessage(),
+                "success" => false
+            ], 500);
+        }
+    }
+
+    public function delete($eventId, $participantId)
+    {
+        try {
+            $participant = Participants::findOrFail($participantId);
+
+            $isIntervenant = DB::table('event_intervenants')
+                ->where('event_id', $eventId)
+                ->where('intervenant_id', $participantId)
+                ->exists();
+
+            if ($isIntervenant) {
+                DB::table('event_intervenants')
+                    ->where('event_id', $eventId)
+                    ->where('intervenant_id', $participantId)
+                    ->delete();
+            }
+
+            $participant->delete();
+            return response()->json([
+                "success" => true,
+                "message" => "Participant has been successfully deleted."
             ]);
         } catch (\Throwable $th) {
             return response()->json([
-                'success' => false,
-                'message' => $th->getMessage()
+                "success" => false,
+                "message" => $th->getMessage()
             ]);
         }
     }
 
-    public function add(Request $req)
+    public function add(Request $req, $eventId)
     {
         try {
             $validated = $req->validate([
@@ -183,12 +279,51 @@ class ParticipantsController extends Controller
                 'phone' => "string|nullable",
                 'organization' => "string|nullable",
                 'expectations' => "string|nullable",
-                'event_id' => 'required',
+                'bio' => "string|nullable",
+                'expertise' => "string|nullable",
             ]);
+            $event = Event::findOrFail($eventId);
+            $currentCount = Participants::where('event_id', $eventId)->count();
+            if ($currentCount >= $event->capacity) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Event has reached maximum capacity."
+                ], 400);
+            }
 
-            Participants::create($validated);
+            $token = Str::uuid();
+            $checkinUrl = url("/api/participant/check-in/{$token}");
+            $validated['event_id'] = $eventId;
+            $validated['checkin_token'] = $token;
+            $participant = Participants::create($validated);
 
-            Mail::to($validated['email'])->send(new AcceptanceNotification($validated['name']));
+            if ($validated["role"] === "intervenant") {
+                DB::table('event_intervenants')->insert([
+                    'event_id' => $eventId,
+                    'intervenant_id' => $participant->id,
+                ]);
+            }
+            $eventName = $event->title;
+
+            $qrResult = (new Builder(
+                writer: new PngWriter(),
+                data: $checkinUrl,
+                encoding: new Encoding('UTF-8'),
+                errorCorrectionLevel: QrCodeErrorCorrectionLevel::High,
+                size: 300,
+                margin: 10,
+                roundBlockSizeMode: RoundBlockSizeMode::Margin
+            ))->build();
+
+            $qrFileName = "qr_codes/checkin_{$participant->id}.png";
+            Storage::disk('public')->put($qrFileName, $qrResult->getString());
+
+            Mail::to($validated["email"])->send(new AcceptanceNotification(
+                $validated["name"],
+                $checkinUrl,
+                storage_path("app/public/" . $qrFileName),
+                $eventName
+            ));
 
             return response()->json([
                 "success" => true,
@@ -200,6 +335,27 @@ class ParticipantsController extends Controller
                 "data" => $th->getMessage()
             ]);
         }
+    }
+
+    public function check_in($token)
+    {
+        $participant = Participants::where('checkin_token', $token)->first();
+        $event = Event::findOrFail($participant->event_id);
+        if (!$participant) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid or expired check-in link.'
+            ], 404);
+        }
+        return response()->json([
+            'success' => true,
+            'message' => 'Check-in successful. Welcome, ' . $participant->name . '!',
+            'data' => [
+                'name' => $participant->name,
+                "role" => $participant->role,
+                "event" => $event
+            ]
+        ]);
     }
 
     public function exportParticipantsCSV()
@@ -272,7 +428,6 @@ class ParticipantsController extends Controller
 
     public function sendReminders(Request $req)
     {
-
         $validated = $req->validate([
             'participantIds' => 'required|array',
             'subject' => 'required|string',

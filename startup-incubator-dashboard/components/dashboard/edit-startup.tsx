@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import axios from "axios"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
 
 interface EditStartupDialogProps {
   startup: any
@@ -23,6 +25,7 @@ export function EditStartupDialog({ startup, open, onOpenChange, onSuccess }: Ed
   const { toast } = useToast()
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
   
   // Form state
   const [formData, setFormData] = useState({
@@ -109,7 +112,12 @@ export function EditStartupDialog({ startup, open, onOpenChange, onSuccess }: Ed
       advisor_id: formData.advisor_id ? parseInt(formData.advisor_id) : undefined,
     }
 
-    axios.put(`${apiUrl}/api/startup/${startup.id}`)
+    axios.put(`${apiUrl}/api/startup/${startup.id}`, apiData, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    })
       .then((response) => {
         if (response.data.success) {
           toast({

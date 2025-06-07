@@ -1,1 +1,0 @@
-<p>{!! nl2br(e($content)) !!}</p>

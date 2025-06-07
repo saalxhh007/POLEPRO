@@ -10,22 +10,31 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import axios from "axios"
 import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
 
-export function AssignStartupDialog({ fetchMentors, isOpen, onClose, mentor, onAssign }: { isOpen: any; onClose: any; mentor: any, onAssign: any, fetchMentors: any }) {
+export function AssignStartupDialog({
+  fetchMentors,
+  isOpen,
+  onClose,
+  mentor,
+}: { isOpen: any; onClose: any; mentor: any; fetchMentors: any }) {
   const [startups, setStartups] = useState([])
   const [selectedStartup, setSelectedStartup] = useState<any>(null)
   const [open, setOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
 
   useEffect(() => {
     const fetchStartups = async () => {
-      axios.get(`${apiUrl}/api/startup`)
-        .then(response => {
+      axios
+        .get(`${apiUrl}/api/startup`)
+        .then((response) => {
           setStartups(response.data.data)
         })
-        .catch(err => {
+        .catch((err) => {
           console.error("Error fetching startups:", err)
         })
     }
@@ -42,29 +51,37 @@ export function AssignStartupDialog({ fetchMentors, isOpen, onClose, mentor, onA
     }
 
     setIsSubmitting(true)
-      const assignmentData = {
-        mentor_id: mentor.id,
-        startup_id: selectedStartup.id,
-      }
-      axios.post(`${apiUrl}/api/mentor/startup/assign/`, assignmentData)
-        .then(response => {
-          if (response.data.success) {
-            toast.success(`${response.data.message}`)
-            fetchMentors()
-          }
-        })
-        .catch(err => {
-          toast.error(`Error Assigning A mentor To This Startup`)
-          console.log(err);
-          
-        })
-        .finally(() => {
-          setIsSubmitting(false)
-        })
+    const assignmentData = {
+      mentor_id: mentor.id,
+      startup_id: selectedStartup.id,
     }
+    axios
+      .post(`${apiUrl}/api/mentor/startup/assign/`, assignmentData, {
+        withCredentials: true,
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      })
+      .then((response) => {
+        if (response.data.success) {
+          toast.success(`${response.data.message}`)
+          fetchMentors()
+          onClose()
+        }
+      })
+      .catch((err) => {
+        toast.error(`Error Assigning A mentor To This Startup`)
+        console.log(err)
+      })
+      .finally(() => {
+        setIsSubmitting(false)
+      })
+  }
 
   // Filter startups based on search query
-  const filteredStartups = startups.filter((startup: any) => startup.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredStartups = startups.filter((startup: any) =>
+    startup.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

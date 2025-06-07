@@ -1,81 +1,83 @@
+"use client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import axios from "axios"
 import { ChevronLeft, Download, Search, UserPlus } from "lucide-react"
 import Link from "next/link"
+import React, { useEffect, useState } from "react"
 
+interface Event {
+  id: number;
+  title: string;
+  type: string;
+  description: string;
+  date: string;
+  time: string;
+  capacity: number;
+  location: string;
+  fiche?: string | null;
+  fiche_alternatif?: string | null;
+  fiche_title?: string | null;
+  tags: string;
+  supp?: string | null;
+}
 export default function EventParticipantsPage({ params }: { params: { id: string } }) {
-  // Dans une application réelle, vous récupéreriez les détails de l'événement et les participants à partir d'une API
-  const event = {
-    id: params.id,
-    title: "Atelier d'Innovation Entrepreneuriale",
+  const [event, setEvent] = useState<Event | null>({
+    id: 0,
+    title: '',
+    type: '',
+    description: '',
+    date: '',
+    time: '',
+    capacity: 0,
+    location: '',
+    fiche: null,
+    fiche_alternatif: null,
+    fiche_title: null,
+    tags: '',
+    supp: null,
+  });
+  const [participants, setParticipants] = useState<any[]>([])
+  const [eventId, setEventId] = useState<string | null>(null)
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  useEffect(() => {
+    const fetchParams = async () => {
+      const resolvedParams = await params
+      setEventId(resolvedParams.id)
+    }
+    fetchParams()
+  }, [params])
+  
+  const fetchEvent = () => {
+    axios
+      .get(`${apiUrl}/api/event/${eventId}`)
+      .then((response) => {
+        setEvent(response.data.data)
+      })
+      .catch((err) => {
+        console.log(err);
+      })
   }
 
-  const participants = [
-    {
-      id: "1",
-      name: "Ahmed Benali",
-      email: "ahmed.benali@example.com",
-      organization: "Université de Guelma",
-      registrationDate: "15 Mai 2025",
-      status: "confirmed",
-    },
-    {
-      id: "2",
-      name: "Samira Hadj",
-      email: "samira.hadj@example.com",
-      organization: "TechInnovate",
-      registrationDate: "16 Mai 2025",
-      status: "confirmed",
-    },
-    {
-      id: "3",
-      name: "Karim Meziane",
-      email: "karim.meziane@example.com",
-      organization: "StartupAlgeria",
-      registrationDate: "17 Mai 2025",
-      status: "confirmed",
-    },
-    {
-      id: "4",
-      name: "Leila Bouaziz",
-      email: "leila.bouaziz@example.com",
-      organization: "Digital Solutions",
-      registrationDate: "18 Mai 2025",
-      status: "confirmed",
-    },
-    {
-      id: "5",
-      name: "Omar Taleb",
-      email: "omar.taleb@example.com",
-      organization: "Incubateur BAG",
-      registrationDate: "19 Mai 2025",
-      status: "confirmed",
-    },
-    {
-      id: "6",
-      name: "Fatima Zahra",
-      email: "fatima.zahra@example.com",
-      organization: "FinTech Algérie",
-      registrationDate: "20 Mai 2025",
-      status: "pending",
-    },
-    {
-      id: "7",
-      name: "Youcef Kaddour",
-      email: "youcef.kaddour@example.com",
-      organization: "AgriTech Solutions",
-      registrationDate: "21 Mai 2025",
-      status: "pending",
-    },
-  ]
+  useEffect(() => {
+    if (eventId) {
+      fetchEvent()
+    }
+  }, [eventId])
 
+  useEffect(() => {
+    if (eventId) {
+      console.log(event);
+    }
+  }, [event])
   return (
     <div className="container py-8">
       <div className="mb-6">
         <Link
-          href={`/events/${params.id}`}
+          href={`/events/${eventId}`}
           className="flex items-center text-sm text-muted-foreground hover:text-primary mb-4"
         >
           <ChevronLeft className="mr-1 h-4 w-4" />
@@ -85,7 +87,7 @@ export default function EventParticipantsPage({ params }: { params: { id: string
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Participants</h1>
-            <p className="text-muted-foreground">Liste des participants à l'événement: {event.title}</p>
+            <p className="text-muted-foreground">Liste des participants à l'événement: {event?.title}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" className="flex items-center gap-2">

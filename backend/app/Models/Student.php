@@ -28,7 +28,8 @@ class Student extends Authenticatable
         "faculty_code",
         "department_code",
         "password",
-        "refresh_token"
+        "refresh_token",
+        "refresh_token_expires_at"
     ];
     protected $hidden = [
         "password",
@@ -38,5 +39,9 @@ class Student extends Authenticatable
     public function teamMemberships()
     {
         return $this->hasMany(TeamMember::class);
+    }
+    public function startup()
+    {
+        return $this->belongsTo(Startup::class);
     }
 }

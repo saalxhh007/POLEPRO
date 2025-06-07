@@ -1,5 +1,4 @@
 "use client"
-import type { Metadata } from "next"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { MentorsList } from "@/components/dashboard/mentors-list"
@@ -13,8 +12,6 @@ export default function MentorsPage() {
   const role = useSelector((state: RootState) => state.auth.role);
   const router = useRouter()
   useEffect(() => {
-    console.log(isAuthenticated);
-    
     if (!isAuthenticated || role !== 'admin') {
       router.push('/unauthorized');
     }

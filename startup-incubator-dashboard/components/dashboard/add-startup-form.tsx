@@ -8,7 +8,7 @@ import axios from "axios"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { format } from "date-fns"
-import { CalendarIcon, PlusCircle, X } from "lucide-react"
+import { CalendarIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -27,7 +27,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import toast from "react-hot-toast"
 import { useSelector } from "react-redux"
@@ -133,20 +132,21 @@ export function StartupFormDialog({ fetchStartups }: StartupFormDialogProps) {
     const values = form.getValues()
 
     const toastId = toast.loading("Submitting form...");
-
+    
     axios.post(`${apiUrl}/api/startup`, data, {
       withCredentials: true,
       headers: {
         Authorization: `Bearer ${accessToken}`
       }
     })
-      .then((response) => {
+      .then(() => {
         toast.success("Startup added successfully!", { id: toastId });
         fetchStartups();
         setOpen(false); 
       }
     )
       .catch((error) => {
+        console.log(error);
         toast.error("Failed to submit form.", { id: toastId });})
   }
 

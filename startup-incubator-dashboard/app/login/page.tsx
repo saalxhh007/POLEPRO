@@ -16,8 +16,10 @@ import toast from "react-hot-toast"
 import { useDispatch, useSelector } from "react-redux"
 import { setAuth } from "@/store/slices/authSlice"
 import { RootState } from "@/store"
+import { useRouter } from "next/navigation"
 
 export default function LoginPage() {
+  const router = useRouter()
   const dispatch = useDispatch()
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated)
   const [email, setEmail] = useState("")
@@ -38,25 +40,33 @@ export default function LoginPage() {
       .then(response => {
         if (response.data.success) {
           toast.success("Login Successfully")
-          const { access_token, role } = response.data
-          dispatch(setAuth({ accessToken: access_token, role }))
+          const { access_token, role, expires_in } = response.data
+          
+          const expirationTimestamp = Date.now() + expires_in * 1000;
+          dispatch(setAuth({
+            accessToken: access_token,
+            role,
+            expires_in,
+            expires_at: expirationTimestamp
+          }))
         }
         else {
+          
           toast.error("Failed To Login ( Incorrect Credentials) ")
         }
       })
       .catch(err => {
+          console.log(err);
         toast.error("Failed To Login")
-        console.log(err);
       })
-    .finally(() => {
+      .finally(() => {
       setIsLoading(false)
     })
   }
 
   useEffect(() => {
     if (isAuthenticated) {
-      window.location.href = "/"
+      router.push("/")
     }
   }, [isAuthenticated])
   return (

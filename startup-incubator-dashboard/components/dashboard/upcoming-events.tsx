@@ -1,20 +1,29 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { RootState } from "@/store"
+import axios from "axios"
 import { Calendar, Clock } from "lucide-react"
 import { useEffect, useState } from "react"
+import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
 
 export function UpcomingEvents() {
   const [events, setEvents] = useState<any[]>([])
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
 
-  const fetchUpcommingEvents = async () => {
-    const res = await fetch(`${apiUrl}/api/event/upcoming`)
-    const data = await res.json()
-    
-    if (data.status) {
-      setEvents(data.data)
-    }
+  const fetchUpcommingEvents = () => {
+    axios
+      .get(`${apiUrl}/api/event/upcoming`)
+      .then(response => {
+        if (response.data.success) {
+          setEvents(response.data.data)
+        }
+        else {
+          toast.error("No Event Upcoming")
+        }
+      })
   }
 
   useEffect(() => {

@@ -16,19 +16,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal, Search, Filter } from "lucide-react"
-import { AddMentorForm } from "./add-mentor-form"
-import { ScheduleSessionDialog } from "./schedule-session-dialog"
 import { AssignStartupDialog } from "./assign-startup-dialog"
+import { AddMentorForm } from "./add-mentor-form"
 import { EditMentorDialog } from "./edit-mentor-dialog"
 import { MentorProfileDialog } from "./mentor-profile-dialog"
 import axios from "axios"
 import toast from "react-hot-toast"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store"
+
+const ScheduleSessionDialog = ({ isOpen, onClose, mentor }: any) => null
 
 export function MentorsList() {
   // Use State Vars
   const [searchQuery, setSearchQuery] = useState("")
   const [mentors, setMentors] = useState<any[]>([])
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
 
   // Dialog states
   const [selectedMentor, setSelectedMentor] = useState(null)
@@ -47,35 +51,44 @@ export function MentorsList() {
 
   // Get All The Mentors
   const fetchMentors = async () => {
-    const res = await fetch(`${apiUrl}/api/mentor/`)
-    const data = await res.json()
+    try {
+      const response = await axios.get(`${apiUrl}/api/mentor/`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
 
-    if (data.success) {
-      setMentors(data.data)
+      if (response.data.success) {
+        setMentors(response.data.data)
+      } else {
+        toast.error("Failed To Fetch Mentors")
+      }
+    } catch (error) {
+      toast.error("Failed To Fetch Mentors")
+      console.error("Error fetching mentors:", error)
     }
   }
 
   // Remove A Mentor
   const removeMentor = async (id: number) => {
     try {
-      
       const toastId = toast.loading("Deleting Mentor ...")
-      axios
-        .delete(`${apiUrl}/api/mentor/${id}`)
-        .then(response => {
-          if (response.data.success) {
-            toast.success("Mentor deleted successfully!", { id: toastId })
-            fetchMentors()
-          }
-          else {
-            toast.error("Failed to delete mentor", { id: toastId })
-          }
-        })
-      .catch((error) => {
-        toast.error("Failed to delete mentor")
+
+      const response = await axios.delete(`${apiUrl}/api/mentor/${id}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       })
-       
+
+      if (response.data.success) {
+        toast.success("Mentor deleted successfully!", { id: toastId })
+        fetchMentors()
+      } else {
+        toast.error("Failed to delete mentor", { id: toastId })
+      }
     } catch (error) {
+      toast.error("Failed to delete mentor")
+      console.error("Error deleting mentor:", error)
     }
   }
 
@@ -159,8 +172,14 @@ export function MentorsList() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar>
-                            <AvatarImage src={mentor.image || "/placeholder.svg"} />
-                            <AvatarFallback>{mentor.name.charAt(0)}</AvatarFallback>
+                            <AvatarImage src={`${apiUrl}/storage/${mentor.image}`} alt={mentor.name} />
+                            <AvatarFallback>
+                              {mentor.name
+                                .split(" ")
+                                .map((n: string) => n[0])
+                                .join("")
+                                .toUpperCase()}
+                            </AvatarFallback>
                           </Avatar>
                           <span className="font-medium">{mentor.name}</span>
                         </div>
@@ -220,6 +239,7 @@ export function MentorsList() {
           </div>
         </CardContent>
       </Card>
+
       {selectedMentor && (
         <>
           <EditMentorDialog
@@ -233,6 +253,20 @@ export function MentorsList() {
             isOpen={isProfileDialogOpen}
             onClose={() => setIsProfileDialogOpen(false)}
             mentor={selectedMentor}
+          />
+
+          <AssignStartupDialog
+            fetchMentors={fetchMentors}
+            isOpen={isAssignDialogOpen}
+            onClose={() => setIsAssignDialogOpen(false)}
+            mentor={selectedMentor}
+          />
+
+          <ScheduleSessionDialog
+            isOpen={isScheduleDialogOpen}
+            onClose={() => setIsScheduleDialogOpen(false)}
+            mentor={selectedMentor}
+            onScheduled={handleSessionScheduled}
           />
         </>
       )}

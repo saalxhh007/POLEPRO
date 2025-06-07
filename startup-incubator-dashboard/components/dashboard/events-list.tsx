@@ -35,34 +35,29 @@ import { AddEventForm } from "./add-event-form"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import axios from "axios"
-import { error } from "console"
 import toast from "react-hot-toast"
+import { useDispatch, useSelector } from 'react-redux'
+import { setEvent } from "@/store/slices/eventSlice"
+import { RootState } from "@/store"
 
 export function EventsList() {
+  const dispatch = useDispatch()
   const [searchQuery, setSearchQuery] = useState("")
-  const router = useRouter()
   const [events, setEvents] = useState<any[]>([])
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken)
   const fetchEvents = async () => {
     axios
       .get(`${apiUrl}/api/event/`)
       .then((response) => {
-        if (response.data.status) {
-          const formattedEvents = response.data.data.map((element: any) => {
-            const formattedDate = new Date(element.date).toISOString().split('T')[0];
-            return {
-              ...element,
-              date: formattedDate
-            };
-          });
-          setEvents(formattedEvents);
+        if (response.data.success) {
+          setEvents(response.data.data);
         }
       })
       .catch((error) => {
         console.log(error);
       });
   };
-  
   
   const filteredEvents = events.filter(
     (event) =>
@@ -74,7 +69,6 @@ export function EventsList() {
   // Fonctions pour gérer les interactions avec les événements de la page d'accueil
   const handleHomePageEventInteraction = (eventId: string, action: string) => {
     // Dans une application réelle, ceci enregistrerait l'interaction dans une base de données
-    console.log(`Interaction sur la page d'accueil: ${action} pour l'événement ${eventId}`)
 
     // Simuler une mise à jour des données
     switch (action) {
@@ -95,42 +89,77 @@ export function EventsList() {
     }
   }
 
-  const handleViewEvent = (eventId: string) => {
-    window.open(`/events/${eventId}`, "_blank")
+  const Router = useRouter()
+  const handleViewEvent = (event: any) => {
+    dispatch(setEvent(event))
+    Router.push(`/events/${event.id}`)
   }
 
   const handleEditEvent = (eventId: number) => {
-    router.push(`/dashboard/events/${eventId}/edit`)
+    Router.push(`/dashboard/events/${eventId}/edit`)
   }
 
   const handleManageAttendees = (eventId: string) => {
-    router.push(`/dashboard/events/${eventId}/participants`)
+    Router.push(`/dashboard/events/${eventId}/participants`)
   }
 
   const handleSendReminder = (eventId: string) => {
-    router.push(`/dashboard/events/${eventId}/send-reminder`)
+    Router.push(`/dashboard/events/${eventId}/send-reminder`)
   }
 
   const handleViewStatistics = (eventId: string) => {
-    router.push(`/dashboard/events/${eventId}/statistics`)
+    Router.push(`/dashboard/events/${eventId}/statistics`)
   }
 
-  const handleDownloadPoster = (eventId: string) => {
-    // Dans une application réelle, ceci téléchargerait l'affiche
-    alert(`Téléchargement de l'affiche pour l'événement ${eventId}`)
-  }
+const handleDownloadPoster = (eventId: string) => {
+  axios
+    .get(`${apiUrl}/api/event/fiche-poster/${eventId}`, {
+      responseType: "blob",
+    })
+    .then((response) => {
+      const blob = new Blob([response.data]);
+
+      const downloadURL = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'poster.png';
+
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+)"?/);
+        if (match && match[1]) {
+          filename = match[1];
+        }
+      }
+
+      link.href = downloadURL;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadURL);
+    })
+    .catch((err) => {
+      console.error("Failed to download poster:", err);
+    });
+};
+
 
   const handleShareEvent = (eventId: string) => {
-    router.push(`/dashboard/events/${eventId}/share`)
+    Router.push(`/dashboard/events/${eventId}/share`)
   }
 
   // Completed
   const handleCancelEvent = (eventId: string) => {
     try {
       const toastId = toast.loading("Deleting Event ...")
-
       if (confirm(`Are You Sure About Deleting This Event ?`)) {
-        axios.delete(`${apiUrl}/api/event/${eventId}`)
+        axios.delete(`${apiUrl}/api/event/${eventId}`, {
+          withCredentials: true,
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        })
         .then((response) => {
           toast.success(`${response.data.message}!`, { id: toastId })
           if (fetchEvents) fetchEvents()
@@ -150,8 +179,6 @@ export function EventsList() {
 
   useEffect(() => {
     fetchEvents()
-    console.log(events);
-    
   }, [])
   return (
     <Card>
@@ -176,7 +203,7 @@ export function EventsList() {
             <Button
               variant="outline"
               className="flex items-center gap-2"
-              onClick={() => router.push("/dashboard/events/home-stats")}
+              onClick={() => Router.push("/dashboard/events/home-stats")}
             >
               <BarChart className="h-4 w-4" />
               <span>Statistiques</span>
@@ -245,7 +272,7 @@ export function EventsList() {
                           variant="ghost"
                           size="icon"
                           title="View Event"
-                          onClick={() => handleViewEvent(event.id)}
+                          onClick={() => handleViewEvent(event)}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
